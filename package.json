@@ -1,0 +1,11 @@
+{
+  "name": "onlydate",
+  "private": true,
+  "scripts": {
+    "deploy:worker": "export CLOUDFLARE_API_TOKEN=$(grep '^CLOUDFLARE_API_TOKEN=' .env.cloudflare | cut -d= -f2-) && export CLOUDFLARE_ACCOUNT_ID=$(grep '^CLOUDFLARE_ACCOUNT_ID=' .env.cloudflare | cut -d= -f2-) && pnpm --filter onlydate-worker run deploy",
+    "deploy:pages": "export CLOUDFLARE_API_TOKEN=$(grep '^CLOUDFLARE_API_TOKEN=' .env.cloudflare | cut -d= -f2-) && export CLOUDFLARE_ACCOUNT_ID=$(grep '^CLOUDFLARE_ACCOUNT_ID=' .env.cloudflare | cut -d= -f2-) && npx wrangler pages deploy apps/onlydate --project-name onlydate --branch main --commit-dirty=true",
+    "deploy": "pnpm run deploy:worker && pnpm run deploy:pages",
+    "typecheck": "pnpm --filter onlydate-worker run typecheck"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

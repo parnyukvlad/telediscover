@@ -1,0 +1,13 @@
+name = "onlydate-api"
+main = "src/index.ts"
+compatibility_date = "2024-05-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "production"
+
+# Prod D1 — read-only access for public discovery
+[[d1_databases]]
+binding = "DB"
+database_name = "telegram-saas-db"
+database_id = "a5ecae6f-2448-4770-b134-2ce77fa987b4"
