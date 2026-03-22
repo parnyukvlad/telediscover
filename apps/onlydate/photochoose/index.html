@@ -403,6 +403,20 @@
     .modal-file-area .file-preview.visible { display: block; }
     .modal-file-area .file-hint { font-size: 12px; color: var(--muted); }
 
+    /* ── Delete persona button ───────────────────── */
+    .btn-delete-persona {
+      flex-shrink: 0;
+      border: 1px solid rgba(239,68,68,0.4);
+      background: transparent;
+      color: var(--red);
+      font-size: 14px;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+    }
+    .btn-delete-persona:hover { background: rgba(239,68,68,0.15); }
+
     /* ── Feed mode toggle bar ────────────────────── */
     .feed-mode-bar {
       padding: 10px 16px 6px;
@@ -917,6 +931,9 @@ function renderPersonaList(personas) {
         '</div>' +
         '<div class="row-actions">' +
           feedVisBtn(p) +
+          (p.source === 'feed_entry'
+            ? '<button class="btn-delete-persona" data-action="delete-persona" data-persona-id="' + escHtml(p.id) + '" title="Delete">🗑</button>'
+            : '') +
         '</div>' +
         '<div class="persona-arrow">›</div>' +
       '</div>'
@@ -939,6 +956,39 @@ $searchInput.addEventListener('input', function () {
 
 /* ── Persona list click ───────────────────────── */
 $personaList.addEventListener('click', async function (e) {
+  // Delete persona (feed_entry only)
+  var delBtn = e.target.closest('[data-action="delete-persona"]');
+  if (delBtn) {
+    e.stopPropagation();
+    var pid = delBtn.dataset.personaId;
+    var persona = allPersonas.find(function (p) { return p.id === pid; });
+    if (!persona) return;
+    if (!confirm('Delete "' + persona.name + '"? This cannot be undone.')) return;
+    delBtn.disabled = true;
+    try {
+      var res = await fetch(API_BASE + '/api/onlydate/admin/feed-entry/delete', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+        body:    JSON.stringify({ feed_entry_id: pid }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      allPersonas = allPersonas.filter(function (p) { return p.id !== pid; });
+      renderPersonaList(
+        $searchInput.value.trim()
+          ? allPersonas.filter(function (p) {
+              var q = $searchInput.value.trim().toLowerCase();
+              return p.name.toLowerCase().includes(q) || (p.username||'').toLowerCase().includes(q);
+            })
+          : allPersonas
+      );
+      showToast('Persona deleted');
+    } catch {
+      showToast('Error — try again');
+      delBtn.disabled = false;
+    }
+    return;
+  }
+
   // Feed visibility button
   var feedBtn = e.target.closest('[data-action="feed-vis"]');
   if (feedBtn) {
