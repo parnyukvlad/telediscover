@@ -336,6 +336,73 @@
     /* ── Empty state ─────────────────────────────── */
     .empty { text-align: center; padding: 64px 20px; color: var(--muted); font-size: 14px; }
 
+    /* ── Upload photo card ────────────────────────── */
+    .photo-card-upload {
+      aspect-ratio: 3 / 4;
+      border-radius: 10px;
+      border: 2px dashed rgba(255,255,255,0.15);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+      overflow: hidden;
+    }
+    .photo-card-upload:hover { border-color: var(--accent); background: rgba(168,85,247,0.06); }
+    .photo-card-upload input[type=file] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .photo-card-upload .upload-icon { font-size: 28px; }
+    .photo-card-upload .upload-label { font-size: 11px; color: var(--muted); text-align: center; }
+    .photo-card-upload.uploading { pointer-events: none; }
+    .photo-card-upload.uploading .upload-icon { animation: spPulse 1.2s ease-in-out infinite; }
+
+    /* ── Upload progress overlay ─────────────────── */
+    .upload-progress {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--accent);
+      transform-origin: left;
+      transform: scaleX(0);
+      transition: transform 0.3s;
+    }
+
+    /* ── Delete button on feed_entry photos ──────── */
+    .btn-delete { background: rgba(239,68,68,0.85); color: #fff; }
+
+    /* ── Cover button ─────────────────────────────── */
+    .btn-set-cover { background: rgba(245,158,11,0.85); color: #fff; }
+
+    /* ── Modal file input ────────────────────────── */
+    .modal-file-area {
+      border: 2px dashed rgba(255,255,255,0.12);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      position: relative;
+      transition: border-color 0.15s;
+      margin-bottom: 14px;
+    }
+    .modal-file-area:hover { border-color: var(--accent); }
+    .modal-file-area input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .modal-file-area .file-preview {
+      width: 60px; height: 60px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin: 0 auto 8px;
+      display: none;
+    }
+    .modal-file-area .file-preview.visible { display: block; }
+    .modal-file-area .file-hint { font-size: 12px; color: var(--muted); }
+
     /* ── Feed mode toggle bar ────────────────────── */
     .feed-mode-bar {
       padding: 10px 16px 6px;
@@ -604,6 +671,9 @@
     </div>
   </div>
 
+  <!-- Hidden file input for gallery upload (feed_entry only) -->
+  <input type="file" id="gallery-file-input" accept="image/*" multiple style="display:none" />
+
 </div>
 
 <!-- ═══ ADD PERSONA MODAL ══════════════════════════ -->
@@ -619,8 +689,12 @@
       <input class="modal-input" id="modal-handle" type="text" placeholder="e.g. sofia_rossi" autocomplete="off" />
     </div>
     <div class="modal-field">
-      <label class="modal-label" for="modal-cover">Cover URL (optional)</label>
-      <input class="modal-input" id="modal-cover" type="url" placeholder="https://…" autocomplete="off" />
+      <label class="modal-label">Cover Photo (optional)</label>
+      <div class="modal-file-area" id="modal-cover-area">
+        <input type="file" id="modal-cover-file" accept="image/*" />
+        <img class="file-preview" id="modal-cover-preview" src="" alt="" />
+        <div class="file-hint" id="modal-cover-hint">Click to choose photo</div>
+      </div>
     </div>
     <div class="modal-btns">
       <button class="modal-btn-cancel" id="modal-cancel">Cancel</button>
@@ -654,21 +728,26 @@ const $searchInput   = document.getElementById('search-input');
 const $toast         = document.getElementById('toast');
 const $addPersonaBtn = document.getElementById('add-persona-btn');
 const $modalOverlay  = document.getElementById('modal-overlay');
-const $modalName     = document.getElementById('modal-name');
-const $modalHandle   = document.getElementById('modal-handle');
-const $modalCover    = document.getElementById('modal-cover');
-const $modalCancel   = document.getElementById('modal-cancel');
-const $modalSubmit   = document.getElementById('modal-submit');
+const $modalName        = document.getElementById('modal-name');
+const $modalHandle      = document.getElementById('modal-handle');
+const $modalCoverFile   = document.getElementById('modal-cover-file');
+const $modalCoverPreview = document.getElementById('modal-cover-preview');
+const $modalCoverHint   = document.getElementById('modal-cover-hint');
+const $modalCancel      = document.getElementById('modal-cancel');
+const $modalSubmit      = document.getElementById('modal-submit');
+const $galleryFileInput = document.getElementById('gallery-file-input');
 const $pillAll       = document.getElementById('pill-all');
 const $pillSelected  = document.getElementById('pill-selected');
 const $feedCount     = document.getElementById('feed-count');
 
 /* ── State ────────────────────────────────────── */
-let password      = '';
-let allPersonas   = [];
-let currentPersId = null;
-let toastTimer    = null;
-let feedMode      = 'all'; // 'all' | 'selected'
+let password            = '';
+let allPersonas         = [];
+let currentPersId       = null;
+let currentPersonaSrc   = ''; // 'personas' | 'feed_entry'
+let toastTimer          = null;
+let feedMode            = 'all'; // 'all' | 'selected'
+let pendingCoverFile    = null; // File | null — for modal cover upload
 
 /* ── Boot ─────────────────────────────────────── */
 const saved = sessionStorage.getItem(SESSION_KEY);
@@ -907,7 +986,8 @@ $personaList.addEventListener('click', async function (e) {
 function openPersonaPhotos(personaId) {
   const persona = allPersonas.find(function (p) { return p.id === personaId; });
   if (!persona) return;
-  currentPersId = personaId;
+  currentPersId     = personaId;
+  currentPersonaSrc = persona.source || 'personas';
 
   $personasView.style.display  = 'none';
   $photosView.style.display    = 'block';
@@ -941,17 +1021,54 @@ function showPersonasView() {
 
 /* ── Render photo grid ────────────────────────── */
 function renderPhotoGrid(persona) {
+  var isFeedEntry = (persona.source === 'feed_entry');
+
+  if (isFeedEntry) {
+    // Feed entry: show upload card + gallery photos with delete/cover actions
+    var uploadCard = (
+      '<div class="photo-card-upload" id="upload-card">' +
+        '<input type="file" id="upload-card-input" accept="image/*" multiple />' +
+        '<div class="upload-icon">📷</div>' +
+        '<div class="upload-label">Upload photos</div>' +
+      '</div>'
+    );
+    var photoCards = persona.photos.map(function (ph) {
+      var isCover = (ph.file_url === persona.cover_url);
+      var coverClass = isCover ? ' is-cover' : '';
+      return (
+        '<div class="photo-card' + coverClass + '" data-media-id="' + escHtml(ph.media_id) + '" data-file-url="' + escHtml(ph.file_url) + '">' +
+          '<img src="' + escHtml(ph.file_url) + '" loading="lazy" alt="">' +
+          '<div class="cover-badge">Cover</div>' +
+          '<div class="photo-actions">' +
+            '<button class="photo-btn btn-set-cover" data-action="set-cover" title="Set as cover">⭐</button>' +
+            '<button class="photo-btn btn-delete" data-action="delete-photo" title="Delete">🗑</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join('');
+    $photosGrid.innerHTML = uploadCard + photoCards;
+
+    // Wire up the upload card input
+    document.getElementById('upload-card-input').addEventListener('change', function (e) {
+      var files = Array.from(e.target.files || []);
+      if (files.length) uploadGalleryPhotos(files, persona.id);
+      e.target.value = '';
+    });
+    return;
+  }
+
+  // Regular persona from personas table
   if (persona.photos.length === 0) {
     $photosGrid.innerHTML = '<div class="empty" style="grid-column:1/-1">No photos.</div>';
     return;
   }
   $photosGrid.innerHTML = persona.photos.map(function (ph) {
-    var hiddenClass  = ph.is_hidden ? ' hidden-photo' : '';
-    var coverClass   = ph.is_cover  ? ' is-cover'     : '';
-    var eyeState     = ph.is_hidden ? ' hidden-state'  : '';
-    var eyeIcon      = ph.is_hidden ? '🚫'             : '👁';
-    var starState    = ph.is_cover  ? ' cover-state'   : '';
-    var starIcon     = ph.is_cover  ? '⭐'             : '☆';
+    var hiddenClass = ph.is_hidden ? ' hidden-photo' : '';
+    var coverClass  = ph.is_cover  ? ' is-cover'     : '';
+    var eyeState    = ph.is_hidden ? ' hidden-state'  : '';
+    var eyeIcon     = ph.is_hidden ? '🚫'             : '👁';
+    var starState   = ph.is_cover  ? ' cover-state'   : '';
+    var starIcon    = ph.is_cover  ? '⭐'             : '☆';
     return (
       '<div class="photo-card' + hiddenClass + coverClass + '" data-media-id="' + escHtml(ph.media_id) + '">' +
         '<img src="' + escHtml(ph.file_url) + '" loading="lazy" alt="">' +
@@ -966,6 +1083,53 @@ function renderPhotoGrid(persona) {
   }).join('');
 }
 
+/* ── Upload helper ────────────────────────────── */
+async function uploadFile(file, context, entryId) {
+  var fd = new FormData();
+  fd.append('file', file);
+  fd.append('context', context);
+  fd.append('entry_id', entryId);
+  var res = await fetch(API_BASE + '/api/onlydate/admin/upload', {
+    method:  'POST',
+    headers: { 'X-Admin-Password': password },
+    body:    fd,
+  });
+  if (!res.ok) throw new Error('Upload failed');
+  return await res.json(); // { url, key }
+}
+
+async function uploadGalleryPhotos(files, entryId) {
+  var uploadCard = document.getElementById('upload-card');
+  if (uploadCard) uploadCard.classList.add('uploading');
+  var uploaded = 0;
+  for (var i = 0; i < files.length; i++) {
+    try {
+      var result = await uploadFile(files[i], 'gallery', entryId);
+      // Register in DB
+      var res = await fetch(API_BASE + '/api/onlydate/admin/feed-entry/photo/add', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+        body:    JSON.stringify({ feed_entry_id: entryId, file_url: result.url, file_key: result.key, sort_order: Date.now() }),
+      });
+      if (res.ok) {
+        var data = await res.json();
+        // Add to in-memory persona
+        var persona = allPersonas.find(function (p) { return p.id === entryId; });
+        if (persona) persona.photos.push({ media_id: data.photo.id, file_url: result.url, file_key: result.key, is_hidden: false, is_cover: false });
+        uploaded++;
+      }
+    } catch (err) {
+      showToast('Failed to upload ' + files[i].name);
+    }
+  }
+  if (uploaded > 0) {
+    var persona = allPersonas.find(function (p) { return p.id === entryId; });
+    if (persona) renderPhotoGrid(persona);
+    showToast(uploaded + ' photo' + (uploaded > 1 ? 's' : '') + ' uploaded');
+  }
+  if (uploadCard) uploadCard.classList.remove('uploading');
+}
+
 /* ── Photo action clicks ──────────────────────── */
 $photosGrid.addEventListener('click', async function (e) {
   var btn = e.target.closest('[data-action]');
@@ -978,6 +1142,44 @@ $photosGrid.addEventListener('click', async function (e) {
   if (!photo) return;
 
   var action = btn.dataset.action;
+
+  // ── feed_entry actions ──
+  if (action === 'set-cover') {
+    btn.disabled = true;
+    try {
+      var res = await fetch(API_BASE + '/api/onlydate/admin/feed-entry/set-cover', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+        body:    JSON.stringify({ feed_entry_id: persona.id, file_url: photo.file_url }),
+      });
+      if (!res.ok) throw new Error();
+      persona.cover_url = photo.file_url;
+      // Also update the avatar in the persona list
+      var listPersona = allPersonas.find(function (p) { return p.id === persona.id; });
+      if (listPersona) listPersona.cover_url = photo.file_url;
+      renderPhotoGrid(persona);
+      showToast('Cover set ⭐');
+    } catch { showToast('Error — try again'); }
+    finally { btn.disabled = false; }
+    return;
+  }
+
+  if (action === 'delete-photo') {
+    btn.disabled = true;
+    try {
+      var res = await fetch(API_BASE + '/api/onlydate/admin/feed-entry/photo/delete', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+        body:    JSON.stringify({ photo_id: mediaId, file_key: photo.file_key }),
+      });
+      if (!res.ok) throw new Error();
+      persona.photos = persona.photos.filter(function (ph) { return ph.media_id !== mediaId; });
+      renderPhotoGrid(persona);
+      showToast('Photo deleted');
+    } catch { showToast('Error — try again'); }
+    finally { btn.disabled = false; }
+    return;
+  }
 
   if (action === 'toggle') {
     btn.disabled = true;
@@ -1027,10 +1229,27 @@ $photosGrid.addEventListener('click', async function (e) {
 });
 
 /* ── Add persona modal ────────────────────────── */
+// Cover file picker in modal
+$modalCoverFile.addEventListener('change', function (e) {
+  var file = e.target.files && e.target.files[0];
+  if (!file) return;
+  pendingCoverFile = file;
+  var reader = new FileReader();
+  reader.onload = function (ev) {
+    $modalCoverPreview.src = ev.target.result;
+    $modalCoverPreview.classList.add('visible');
+    $modalCoverHint.textContent = file.name;
+  };
+  reader.readAsDataURL(file);
+});
+
 $addPersonaBtn.addEventListener('click', function () {
   $modalName.value   = '';
   $modalHandle.value = '';
-  $modalCover.value  = '';
+  $modalCoverFile.value = '';
+  $modalCoverPreview.classList.remove('visible');
+  $modalCoverHint.textContent = 'Click to choose photo';
+  pendingCoverFile = null;
   $modalOverlay.classList.add('open');
   $modalName.focus();
 });
@@ -1057,23 +1276,29 @@ $modalHandle.addEventListener('input', function () {
 
 $modalSubmit.addEventListener('click', submitNewPersona);
 $modalName.addEventListener('keydown',   function (e) { if (e.key === 'Enter') $modalHandle.focus(); });
-$modalHandle.addEventListener('keydown', function (e) { if (e.key === 'Enter') $modalCover.focus(); });
-$modalCover.addEventListener('keydown',  function (e) { if (e.key === 'Enter') submitNewPersona(); });
+$modalHandle.addEventListener('keydown', function (e) { if (e.key === 'Enter') submitNewPersona(); });
 
 async function submitNewPersona() {
-  var name  = $modalName.value.trim();
+  var name   = $modalName.value.trim();
   var handle = $modalHandle.value.trim().replace(/^@/, '');
-  var cover  = $modalCover.value.trim() || null;
   if (!name)   { $modalName.focus();   showToast('Enter display name'); return; }
   if (!handle) { $modalHandle.focus(); showToast('Enter handle'); return; }
 
   $modalSubmit.disabled = true;
   $modalSubmit.textContent = 'Creating…';
   try {
+    // Upload cover if selected (use temp ID, will update after create)
+    var coverUrl = null;
+    if (pendingCoverFile) {
+      $modalSubmit.textContent = 'Uploading…';
+      var uploadResult = await uploadFile(pendingCoverFile, 'cover', 'new-' + Date.now());
+      coverUrl = uploadResult.url;
+    }
+
     var res = await fetch(API_BASE + '/api/onlydate/admin/persona/create', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
-      body:    JSON.stringify({ display_name: name, handle: handle, cover_url: cover }),
+      body:    JSON.stringify({ display_name: name, handle: handle, cover_url: coverUrl }),
     });
     var data = await res.json();
     if (!res.ok) {
@@ -1083,7 +1308,9 @@ async function submitNewPersona() {
     allPersonas.unshift(data.persona);
     $modalOverlay.classList.remove('open');
     delete $modalHandle.dataset.edited;
-    $modalCover.value = '';
+    pendingCoverFile = null;
+    $modalCoverPreview.classList.remove('visible');
+    $modalCoverHint.textContent = 'Click to choose photo';
     renderPersonaList(allPersonas);
     showToast('Persona created ✓');
   } catch {

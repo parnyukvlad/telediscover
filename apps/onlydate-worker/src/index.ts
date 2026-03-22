@@ -3,7 +3,10 @@ import { Hono } from 'hono';
 interface Env {
   DB: D1Database;
   BOT_TOKEN: string;
+  MEDIA: R2Bucket;
 }
+
+const MEDIA_BASE = 'https://onlydate-api.tg-saas.workers.dev/media';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -25,6 +28,119 @@ app.use('*', async (c, next) => {
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 app.get('/', (c) => c.json({ name: 'OnlyDate API', status: 'ok' }));
+
+// ─── R2 media serve ───────────────────────────────────────────────────────────
+// Serves uploaded files publicly via the worker
+app.get('/media/*', async (c) => {
+  const key = c.req.path.replace(/^\/media\//, '');
+  if (!key) return c.notFound();
+  const obj = await c.env.MEDIA.get(key);
+  if (!obj) return c.notFound();
+  const headers = new Headers();
+  if (obj.httpMetadata?.contentType) headers.set('Content-Type', obj.httpMetadata.contentType);
+  headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+  return new Response(obj.body as BodyInit, { headers });
+});
+
+// ─── Admin: upload image to R2 ────────────────────────────────────────────────
+// POST /api/onlydate/admin/upload
+// multipart/form-data: file (image/*), context? ('cover'|'gallery'), entry_id?
+app.post('/api/onlydate/admin/upload', async (c) => {
+  if (!isAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+
+  let formData: FormData;
+  try { formData = await c.req.formData(); } catch { return c.json({ error: 'Bad form data' }, 400); }
+
+  const file = formData.get('file') as File | null;
+  if (!file) return c.json({ error: 'file required' }, 400);
+  if (!file.type.startsWith('image/')) return c.json({ error: 'Only images allowed' }, 400);
+  if (file.size > 10 * 1024 * 1024) return c.json({ error: 'Max 10 MB' }, 400);
+
+  const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : file.type === 'image/gif' ? 'gif' : 'jpg';
+  const context  = (formData.get('context') as string | null) ?? 'gallery';
+  const entryId  = (formData.get('entry_id') as string | null) ?? 'misc';
+  const key      = `feed-entries/${entryId}/${context}-${crypto.randomUUID()}.${ext}`;
+
+  try {
+    await c.env.MEDIA.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+    const url = `${MEDIA_BASE}/${key}`;
+    return c.json({ ok: true, url, key });
+  } catch (err) {
+    console.error('[OnlyDate] upload error:', err);
+    return c.json({ error: 'Upload failed' }, 500);
+  }
+});
+
+// ─── Admin: add gallery photo to feed entry ──────────────────────────────────
+// POST /api/onlydate/admin/feed-entry/photo/add
+// Body: { feed_entry_id, file_url, file_key, sort_order? }
+app.post('/api/onlydate/admin/feed-entry/photo/add', async (c) => {
+  if (!isAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+
+  let body: { feed_entry_id?: string; file_url?: string; file_key?: string; sort_order?: number };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Bad JSON' }, 400); }
+  if (!body.feed_entry_id || !body.file_url || !body.file_key) {
+    return c.json({ error: 'feed_entry_id, file_url, file_key required' }, 400);
+  }
+
+  const id    = crypto.randomUUID();
+  const order = body.sort_order ?? 0;
+  const now   = Date.now();
+
+  try {
+    await c.env.DB.prepare(`
+      INSERT INTO onlydate_feed_photos (id, feed_entry_id, file_key, file_url, sort_order, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(id, body.feed_entry_id, body.file_key, body.file_url, order, now).run();
+    return c.json({ ok: true, photo: { id, file_url: body.file_url, file_key: body.file_key, sort_order: order } });
+  } catch (err) {
+    console.error('[OnlyDate] feed-entry/photo/add error:', err);
+    return c.json({ error: 'Failed' }, 500);
+  }
+});
+
+// ─── Admin: delete gallery photo from feed entry ─────────────────────────────
+// POST /api/onlydate/admin/feed-entry/photo/delete
+// Body: { photo_id, file_key }
+app.post('/api/onlydate/admin/feed-entry/photo/delete', async (c) => {
+  if (!isAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+
+  let body: { photo_id?: string; file_key?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Bad JSON' }, 400); }
+  if (!body.photo_id) return c.json({ error: 'photo_id required' }, 400);
+
+  try {
+    await c.env.DB.prepare(`DELETE FROM onlydate_feed_photos WHERE id = ?`).bind(body.photo_id).run();
+    // Also delete from R2 if key provided
+    if (body.file_key) {
+      await c.env.MEDIA.delete(body.file_key).catch(() => {});
+    }
+    return c.json({ ok: true });
+  } catch (err) {
+    console.error('[OnlyDate] feed-entry/photo/delete error:', err);
+    return c.json({ error: 'Failed' }, 500);
+  }
+});
+
+// ─── Admin: update cover for feed entry ──────────────────────────────────────
+// POST /api/onlydate/admin/feed-entry/set-cover
+// Body: { feed_entry_id, file_url }
+app.post('/api/onlydate/admin/feed-entry/set-cover', async (c) => {
+  if (!isAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+
+  let body: { feed_entry_id?: string; file_url?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Bad JSON' }, 400); }
+  if (!body.feed_entry_id || !body.file_url) return c.json({ error: 'feed_entry_id and file_url required' }, 400);
+
+  try {
+    await c.env.DB.prepare(`UPDATE onlydate_feed_entries SET cover_url = ? WHERE id = ?`)
+      .bind(body.file_url, body.feed_entry_id).run();
+    return c.json({ ok: true });
+  } catch (err) {
+    console.error('[OnlyDate] feed-entry/set-cover error:', err);
+    return c.json({ error: 'Failed' }, 500);
+  }
+});
 
 // ─── Feed settings helper ─────────────────────────────────────────────────────
 async function getFeedMode(db: D1Database): Promise<'all' | 'selected'> {
@@ -279,13 +395,33 @@ app.get('/api/onlydate/admin/personas', async (c) => {
   `;
 
   try {
-    const result = await c.env.DB.prepare(sql).all();
+    const [mainResult, feedPhotosResult] = await Promise.all([
+      c.env.DB.prepare(sql).all(),
+      c.env.DB.prepare(`
+        SELECT fp.id AS photo_id, fp.feed_entry_id, fp.file_url, fp.file_key, fp.sort_order
+        FROM onlydate_feed_photos fp
+        ORDER BY fp.feed_entry_id, fp.sort_order ASC, fp.created_at ASC
+      `).all(),
+    ]);
+
+    // Index feed photos by entry id
+    const feedPhotos = new Map<string, { id: string; file_url: string; file_key: string; sort_order: number }[]>();
+    for (const row of feedPhotosResult.results as Record<string, unknown>[]) {
+      const eid = row.feed_entry_id as string;
+      if (!feedPhotos.has(eid)) feedPhotos.set(eid, []);
+      feedPhotos.get(eid)!.push({
+        id:         row.photo_id as string,
+        file_url:   row.file_url as string,
+        file_key:   row.file_key as string,
+        sort_order: row.sort_order as number,
+      });
+    }
 
     type PhotoRow = { media_id: string; file_url: string; is_hidden: boolean; is_cover: boolean };
-    type PersonaEntry = { id: string; name: string; username: string; is_active: boolean; feed_visible: number | null; source: string; photos: PhotoRow[] };
+    type PersonaEntry = { id: string; name: string; username: string; is_active: boolean; feed_visible: number | null; source: string; photos: PhotoRow[]; cover_url?: string };
 
     const map = new Map<string, PersonaEntry>();
-    for (const row of result.results as Record<string, unknown>[]) {
+    for (const row of mainResult.results as Record<string, unknown>[]) {
       const pid = row.persona_id as string;
       if (!map.has(pid)) {
         map.set(pid, {
@@ -298,13 +434,26 @@ app.get('/api/onlydate/admin/personas', async (c) => {
           photos:       [],
         });
       }
-      // Only push if there's actually a photo row (LEFT JOIN may produce NULLs)
       if (row.media_id) {
         map.get(pid)!.photos.push({
           media_id:  row.media_id as string,
           file_url:  row.file_url as string,
           is_hidden: (row.is_hidden as number) === 1,
           is_cover:  (row.is_cover as number) === 1,
+        });
+      }
+    }
+
+    // Attach feed_entry gallery photos as regular photo rows
+    for (const [eid, photos] of feedPhotos) {
+      const entry = map.get(eid);
+      if (!entry) continue;
+      for (const ph of photos) {
+        entry.photos.push({
+          media_id:  ph.id,
+          file_url:  ph.file_url,
+          is_hidden: false,
+          is_cover:  false,
         });
       }
     }
