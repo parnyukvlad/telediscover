@@ -3,28 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>OnlyDate</title>
+  <title>TeleDiscover</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    /* ─────────────────────────────────────────────────
-       Design Tokens
-    ───────────────────────────────────────────────── */
     :root {
-      --bg:           #0a0a0a;
-      --surface:      #141414;
-      --surface2:     #1e1e1e;
-      --accent:       #a855f7;
-      --accent-glow:  rgba(168, 85, 247, 0.15);
-      --accent-dim:   rgba(168, 85, 247, 0.35);
+      --bg:           #0f1115;
+      --surface:      #1a1c20;
+      --surface2:     #1a1c20;
       --text:         #ffffff;
-      --text-muted:   #888888;
-      --radius-card:  16px;
+      --text-muted:   #9aa0a6;
+      --blue:         #1DA1F2;
+      --radius-card:  14px;
       --font:         -apple-system, "SF Pro Display", system-ui, sans-serif;
     }
 
-    /* ─────────────────────────────────────────────────
-       Reset
-    ───────────────────────────────────────────────── */
     *, *::before, *::after {
       margin: 0; padding: 0;
       box-sizing: border-box;
@@ -42,39 +34,25 @@
 
     img { display: block; }
     button { font-family: var(--font); }
+    a { color: inherit; text-decoration: none; }
 
-    /* ─────────────────────────────────────────────────
-       Views
-    ───────────────────────────────────────────────── */
+    /* ── Views ── */
     #grid-view    { display: block;  min-height: 100vh; }
     #profile-view { display: none;   min-height: 100vh; background: var(--bg); }
 
-    /* ─────────────────────────────────────────────────
-       Header
-    ───────────────────────────────────────────────── */
+    /* ── Header ── */
     .header {
-      padding: 22px 16px 10px;
+      padding: 20px 16px 8px;
       text-align: center;
     }
     .header-logo {
-      font-size: 28px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .header-tagline {
-      font-size: 13px;
-      color: var(--text-muted);
-      margin-top: 4px;
-      letter-spacing: 0.2px;
+      font-size: 22px;
+      font-weight: 300;
+      letter-spacing: 2px;
+      color: #fff;
     }
 
-    /* ─────────────────────────────────────────────────
-       Tab Bar
-    ───────────────────────────────────────────────── */
+    /* ── Tab Bar ── */
     .tab-bar {
       position: sticky;
       top: 0;
@@ -100,24 +78,20 @@
       text-align: center;
     }
     .tab-pill.active {
-      background: var(--text);
-      color: #000000;
+      background: #fff;
+      color: #000;
       font-weight: 700;
     }
 
-    /* ─────────────────────────────────────────────────
-       Model Grid
-    ───────────────────────────────────────────────── */
+    /* ── Model Grid ── */
     .model-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      padding: 16px;
+      gap: 10px;
+      padding: 14px;
     }
 
-    /* ─────────────────────────────────────────────────
-       Model Card
-    ───────────────────────────────────────────────── */
+    /* ── Model Card ── */
     .model-card {
       position: relative;
       border-radius: var(--radius-card);
@@ -129,9 +103,7 @@
       -webkit-user-select: none;
       user-select: none;
     }
-    .model-card:active {
-      transform: scale(0.97);
-    }
+    .model-card:active { transform: scale(0.97); }
     .model-card-img {
       width: 100%;
       height: 100%;
@@ -166,9 +138,7 @@
       margin-top: 2px;
     }
 
-    /* ─────────────────────────────────────────────────
-       Skeleton / Loading
-    ───────────────────────────────────────────────── */
+    /* ── Skeleton ── */
     .skeleton {
       border-radius: var(--radius-card);
       aspect-ratio: 3 / 4;
@@ -193,28 +163,37 @@
       100% { transform: translateX(100%);  }
     }
 
-    /* ─────────────────────────────────────────────────
-       Empty State
-    ───────────────────────────────────────────────── */
+    /* ── Empty State ── */
     .empty-state {
       grid-column: 1 / -1;
       text-align: center;
       padding: 64px 20px;
       color: var(--text-muted);
     }
-    .empty-icon  { font-size: 44px; margin-bottom: 14px; }
-    .empty-text  { font-size: 15px; }
+    .empty-icon { font-size: 44px; margin-bottom: 14px; }
+    .empty-text { font-size: 15px; }
 
-    /* ─────────────────────────────────────────────────
-       Profile — Header bar
-    ───────────────────────────────────────────────── */
+    /* ═══════════════════════════════════════════════
+       PROFILE VIEW
+    ══════════════════════════════════════════════════ */
+
+    /* ── Top bar ── */
     .profile-topbar {
       display: flex;
       align-items: center;
-      padding: 14px 16px 10px;
-      gap: 12px;
+      justify-content: center;
+      padding: 16px 16px 10px;
+      position: relative;
+    }
+    .profile-topbar-title {
+      font-size: 18px;
+      font-weight: 300;
+      letter-spacing: 1.5px;
+      color: #fff;
     }
     .back-btn {
+      position: absolute;
+      left: 16px;
       width: 36px;
       height: 36px;
       border-radius: 50%;
@@ -226,100 +205,100 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      flex-shrink: 0;
       transition: background 0.15s;
     }
-    .back-btn:active { background: var(--surface2); }
-    .profile-topbar-title {
-      font-size: 17px;
-      font-weight: 600;
-    }
+    .back-btn:active { background: rgba(255,255,255,0.12); }
 
-    /* ─────────────────────────────────────────────────
-       Profile — Content
-    ───────────────────────────────────────────────── */
-    .profile-content {
-      padding: 0 16px 40px;
-    }
-    .profile-avatar-wrap {
+    /* ── Profile header: avatar left, info right ── */
+    .profile-header {
       display: flex;
-      justify-content: center;
-      margin-bottom: 14px;
+      align-items: flex-start;
+      padding: 20px 24px 0;
+      gap: 18px;
     }
     .profile-avatar {
-      width: 100px;
-      height: 100px;
+      width: 80px;
+      height: 80px;
       border-radius: 50%;
       object-fit: cover;
-      border: 2px solid var(--accent);
+      flex-shrink: 0;
       background: var(--surface2);
     }
+    .profile-info {
+      flex: 1;
+      min-width: 0;
+      padding-top: 4px;
+    }
+    .profile-name-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
     .profile-name {
-      text-align: center;
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 700;
-      margin-bottom: 4px;
+      color: #fff;
+      line-height: 1.2;
+    }
+    .verified-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--blue);
+      flex-shrink: 0;
+    }
+    .verified-badge svg {
+      width: 11px;
+      height: 11px;
+      fill: #fff;
     }
     .profile-username {
-      text-align: center;
+      display: block;
       font-size: 14px;
       color: var(--text-muted);
-      margin-bottom: 20px;
+      margin-top: 4px;
     }
-
-    /* ─────────────────────────────────────────────────
-       Profile — Action buttons
-    ───────────────────────────────────────────────── */
     .profile-actions {
       display: flex;
       gap: 10px;
-      margin-bottom: 24px;
+      margin-top: 14px;
     }
     .btn-primary, .btn-outline {
-      flex: 1;
-      padding: 13px 8px;
-      border-radius: 12px;
-      font-size: 15px;
+      padding: 9px 20px;
+      border-radius: 20px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      transition: opacity 0.14s, background 0.14s;
+      transition: opacity 0.14s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
     .btn-primary {
       border: none;
-      background: var(--accent);
+      background: #fff;
+      color: #000;
+    }
+    .btn-primary:active { opacity: 0.8; }
+    .btn-outline {
+      border: none;
+      background: var(--surface);
       color: #fff;
     }
-    .btn-primary:active { opacity: 0.80; }
-    .btn-outline {
-      border: 1.5px solid var(--accent);
-      background: transparent;
-      color: var(--accent);
-    }
-    .btn-outline:active { background: var(--accent-glow); }
+    .btn-outline:active { opacity: 0.7; }
 
-    /* ─────────────────────────────────────────────────
-       Profile — Photos
-    ───────────────────────────────────────────────── */
-    .profile-divider {
-      height: 1px;
-      background: rgba(255,255,255,0.08);
-      margin-bottom: 18px;
-    }
-    .section-label {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 12px;
-    }
+    /* ── 3-column photo grid ── */
     .photos-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 8px;
+      padding: 20px 16px 40px;
     }
     .photo-item {
-      aspect-ratio: 3 / 4;
+      aspect-ratio: 1;
       position: relative;
       border-radius: 12px;
       overflow: hidden;
@@ -328,7 +307,8 @@
       transition: opacity 0.15s;
     }
     .photo-item:active { opacity: 0.85; }
-    .photo-item img {
+    .photo-item img,
+    .photo-item video {
       position: absolute;
       inset: 0;
       width: 100%;
@@ -336,10 +316,24 @@
       object-fit: cover;
       pointer-events: none;
     }
+    .photo-item .video-badge {
+      position: absolute;
+      bottom: 6px;
+      right: 6px;
+      background: rgba(0,0,0,0.55);
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .photo-item video { z-index: 1; }
 
-    /* ─────────────────────────────────────────────────
-       Lightbox
-    ───────────────────────────────────────────────── */
+    /* ── Lightbox ── */
     #lightbox {
       position: fixed;
       inset: 0;
@@ -439,9 +433,7 @@
       padding: 20px 0;
     }
 
-    /* ─────────────────────────────────────────────────
-       Profile — Loading dots
-    ───────────────────────────────────────────────── */
+    /* ── Loading dots ── */
     .profile-loading {
       display: flex;
       justify-content: center;
@@ -452,7 +444,7 @@
     .dot {
       width: 7px; height: 7px;
       border-radius: 50%;
-      background: var(--accent);
+      background: #fff;
       animation: dotPulse 1.2s ease-in-out infinite;
     }
     .dot:nth-child(2) { animation-delay: 0.2s; }
@@ -462,9 +454,7 @@
       40%            { opacity: 1;    transform: scale(1.15); }
     }
 
-    /* ─────────────────────────────────────────────────
-       Toast
-    ───────────────────────────────────────────────── */
+    /* ── Toast ── */
     #toast {
       position: fixed;
       bottom: 28px;
@@ -486,9 +476,7 @@
       transform: translateX(-50%) translateY(0);
     }
 
-    /* ─────────────────────────────────────────────────
-       Fade-in animation
-    ───────────────────────────────────────────────── */
+    /* ── Fade-in ── */
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(10px); }
       to   { opacity: 1; transform: translateY(0);    }
@@ -503,12 +491,11 @@
 
 <!-- ═══════════════════════════════════════════════
      GRID VIEW
-══════════════════════════════════════════════════ -->
+═════════════════════════════════════════════════ -->
 <div id="grid-view">
 
   <header class="header">
-    <div class="header-logo">OnlyDate</div>
-    <div class="header-tagline">Discover. Connect. Chat.</div>
+    <div class="header-logo">TeleDiscover</div>
   </header>
 
   <nav class="tab-bar" id="tab-bar">
@@ -518,75 +505,62 @@
   </nav>
 
   <div class="model-grid" id="grid-container">
-    <!-- Cards or skeletons rendered here -->
   </div>
 
 </div>
 
 <!-- ═══════════════════════════════════════════════
      PROFILE VIEW
-══════════════════════════════════════════════════ -->
+═════════════════════════════════════════════════ -->
 <div id="profile-view">
 
   <div class="profile-topbar">
     <button class="back-btn" id="back-btn" aria-label="Back">←</button>
-    <span class="profile-topbar-title">Profile</span>
+    <span class="profile-topbar-title">TeleDiscover</span>
   </div>
 
   <div class="profile-content" id="profile-content">
-    <!-- Populated by JS -->
   </div>
 
 </div>
 
 <!-- ═══════════════════════════════════════════════
      TOAST
-══════════════════════════════════════════════════ -->
+═════════════════════════════════════════════════ -->
 <div id="toast" role="status" aria-live="polite"></div>
 
 <!-- ═══════════════════════════════════════════════
      LIGHTBOX
-══════════════════════════════════════════════════ -->
-<div id="lightbox">
-  <button id="lightbox-close" aria-label="Close">✕</button>
-  <img id="lightbox-img" src="" alt="photo" />
-  <div id="lightbox-dots"></div>
-  <button id="lightbox-msg">Message</button>
-</div>
+═════════════════════════════════════════════════ -->
+  <div id="lightbox">
+    <button id="lightbox-close" aria-label="Close">✕</button>
+    <img id="lightbox-img" src="" alt="photo" />
+    <video id="lightbox-video" src="" controls preload="metadata" style="display:none;max-width:100%;max-height:calc(100vh - 150px)"></video>
+    <div id="lightbox-dots"></div>
+    <button id="lightbox-msg">Message</button>
+  </div>
 
 <!-- ═══════════════════════════════════════════════
      APP SCRIPT
-══════════════════════════════════════════════════ -->
+═════════════════════════════════════════════════ -->
 <script>
 'use strict';
 
-/* ─────────────────────────────────────────────────
-   Config — update API_BASE if your Worker URL differs
-───────────────────────────────────────────────── */
 const API_BASE = 'https://onlydate-api.tg-saas.workers.dev';
 
-/* ─────────────────────────────────────────────────
-   Telegram Mini App init
-───────────────────────────────────────────────── */
 const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) {
   tg.ready();
   tg.expand();
-  if (typeof tg.setHeaderColor     === 'function') tg.setHeaderColor('#0a0a0a');
-  if (typeof tg.setBackgroundColor === 'function') tg.setBackgroundColor('#0a0a0a');
+  if (typeof tg.setHeaderColor     === 'function') tg.setHeaderColor('#0f1115');
+  if (typeof tg.setBackgroundColor === 'function') tg.setBackgroundColor('#0f1115');
 }
 
-/* ─────────────────────────────────────────────────
-   State
-───────────────────────────────────────────────── */
 const cache = { trending: null, popular: null, new: null };
 let currentTab     = 'trending';
 let currentProfile = null;
 let toastTimer     = null;
 
-/* ─────────────────────────────────────────────────
-   DOM refs
-───────────────────────────────────────────────── */
 const $gridView      = document.getElementById('grid-view');
 const $profileView   = document.getElementById('profile-view');
 const $gridContainer = document.getElementById('grid-container');
@@ -595,23 +569,18 @@ const $tabBar        = document.getElementById('tab-bar');
 const $backBtn       = document.getElementById('back-btn');
 const $toast         = document.getElementById('toast');
 
-/* ─────────────────────────────────────────────────
-   Init
-───────────────────────────────────────────────── */
 function init() {
   renderSkeletons();
   attachTabEvents();
   attachGridEvents();
   $backBtn.addEventListener('click', showGrid);
 
-  // Telegram back button — register once
   if (tg && tg.BackButton) {
     tg.BackButton.onClick(function () {
       if ($profileView.style.display !== 'none') showGrid();
     });
   }
 
-  // Fetch all 3 tabs in parallel, then render current
   Promise.all([
     fetchModels('trending'),
     fetchModels('popular'),
@@ -624,9 +593,6 @@ function init() {
   });
 }
 
-/* ─────────────────────────────────────────────────
-   API
-───────────────────────────────────────────────── */
 async function fetchModels(tab) {
   try {
     const res = await fetch(API_BASE + '/api/onlydate/models?tab=' + encodeURIComponent(tab));
@@ -634,7 +600,7 @@ async function fetchModels(tab) {
     const data = await res.json();
     return Array.isArray(data.models) ? data.models : [];
   } catch (e) {
-    console.error('[OnlyDate] fetchModels(' + tab + '):', e);
+    console.error('[App] fetchModels(' + tab + '):', e);
     return [];
   }
 }
@@ -645,18 +611,12 @@ async function fetchProfile(username) {
   return res.json();
 }
 
-/* ─────────────────────────────────────────────────
-   Render — Skeletons
-───────────────────────────────────────────────── */
 function renderSkeletons() {
   $gridContainer.innerHTML = Array.from({ length: 8 })
     .map(function () { return '<div class="skeleton"></div>'; })
     .join('');
 }
 
-/* ─────────────────────────────────────────────────
-   Render — Grid
-───────────────────────────────────────────────── */
 function renderGrid(tab) {
   const models = cache[tab];
   if (!models) { renderSkeletons(); return; }
@@ -692,9 +652,6 @@ function renderGrid(tab) {
   }).join('');
 }
 
-/* ─────────────────────────────────────────────────
-   Tab switching
-───────────────────────────────────────────────── */
 function attachTabEvents() {
   $tabBar.addEventListener('click', function (e) {
     var pill = e.target.closest('.tab-pill');
@@ -703,7 +660,6 @@ function attachTabEvents() {
     if (tab === currentTab) return;
     currentTab = tab;
 
-    // Update pill styles
     $tabBar.querySelectorAll('.tab-pill').forEach(function (p) {
       p.classList.toggle('active', p.dataset.tab === tab);
     });
@@ -712,9 +668,6 @@ function attachTabEvents() {
   });
 }
 
-/* ─────────────────────────────────────────────────
-   Grid click → Profile
-───────────────────────────────────────────────── */
 function attachGridEvents() {
   $gridContainer.addEventListener('click', function (e) {
     var card = e.target.closest('.model-card');
@@ -722,19 +675,13 @@ function attachGridEvents() {
   });
 }
 
-/* ─────────────────────────────────────────────────
-   Open Profile View
-───────────────────────────────────────────────── */
 async function openProfile(username) {
-  // Switch views
   $gridView.style.display    = 'none';
   $profileView.style.display = 'block';
   window.scrollTo(0, 0);
 
-  // Show Telegram back button
   if (tg && tg.BackButton) tg.BackButton.show();
 
-  // Loading state
   $profileContent.innerHTML =
     '<div class="profile-loading">' +
       '<div class="dot"></div>' +
@@ -747,7 +694,7 @@ async function openProfile(username) {
     currentProfile = profile;
     renderProfile(profile);
   } catch (e) {
-    console.error('[OnlyDate] fetchProfile error:', e);
+    console.error('[App] fetchProfile error:', e);
     $profileContent.innerHTML =
       '<div class="empty-state" style="padding-top:80px">' +
         '<div class="empty-icon">⚠️</div>' +
@@ -756,18 +703,27 @@ async function openProfile(username) {
   }
 }
 
-/* ─────────────────────────────────────────────────
-   Render Profile
-───────────────────────────────────────────────── */
 function renderProfile(p) {
   const name     = escHtml(p.name     || 'Unknown');
   const username = escHtml(p.username || '');
   const avatar   = escHtml(p.cover_photo || '');
+  const handle   = username.replace(/^@/, '');
 
   var photosHtml = '';
   if (p.free_photos && p.free_photos.length > 0) {
     photosHtml = p.free_photos.map(function (url, i) {
       var delay = Math.min(i * 50, 500);
+      var isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(url);
+      if (isVideo) {
+        return (
+          '<div class="photo-item fade-up" style="animation-delay:' + delay + 'ms" ' +
+              'data-photo-index="' + i + '">' +
+            '<video src="' + escHtml(url) + '" autoplay loop muted playsinline preload="auto"' +
+            ' onerror="this.style.display=\'none\'"></video>' +
+            '<div class="video-badge">▶</div>' +
+          '</div>'
+        );
+      }
       return (
         '<div class="photo-item fade-up" style="animation-delay:' + delay + 'ms" ' +
             'data-photo-index="' + i + '">' +
@@ -780,29 +736,44 @@ function renderProfile(p) {
   }
 
   $profileContent.innerHTML =
-    '<div class="profile-avatar-wrap fade-up" style="animation-delay:0ms">' +
+    '<div class="profile-header fade-up">' +
       '<img class="profile-avatar" src="' + avatar + '" alt="' + name + '" ' +
           'onerror="this.style.opacity=\'0\'">' +
+      '<div class="profile-info">' +
+        '<div class="profile-name-row">' +
+          '<span class="profile-name">' + name + '</span>' +
+          '<span class="verified-badge"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></span>' +
+        '</div>' +
+        '<a class="profile-username" href="https://t.me/' + handle + '">@' + handle + '</a>' +
+        '<div class="profile-actions">' +
+          '<button class="btn-primary" id="btn-msg">💬 Message</button>' +
+          '<button class="btn-outline" id="btn-share">↗ Share</button>' +
+        '</div>' +
+      '</div>' +
     '</div>' +
-    '<div class="profile-name fade-up"     style="animation-delay:40ms">' + name + '</div>' +
-    '<div class="profile-username fade-up" style="animation-delay:60ms">@' + username.replace(/^@/, '') + '</div>' +
-    '<div class="profile-actions fade-up"  style="animation-delay:80ms">' +
-      '<button class="btn-primary" id="btn-msg">💬 Message</button>' +
-      '<button class="btn-outline" id="btn-share">↗ Share</button>' +
-    '</div>' +
-    '<div class="profile-divider"></div>' +
-    '<div class="section-label">Photos</div>' +
-    '<div class="photos-grid fade-up" id="photos-grid" style="animation-delay:120ms">' +
+    '<div class="photos-grid fade-up" id="photos-grid">' +
       photosHtml +
     '</div>';
 
-  // Bind action buttons (now in DOM)
   document.getElementById('btn-msg').addEventListener('click', onMessageClick);
   document.getElementById('btn-share').addEventListener('click', onShareClick);
 
-  // Photo tap → lightbox
   var grid = document.getElementById('photos-grid');
   if (grid) {
+    // Autoplay videos when scrolled into view
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          var v = entry.target.querySelector('video');
+          if (v) v.play().catch(function () {});
+        }
+      });
+    }, { threshold: 0.5 });
+    grid.querySelectorAll('.photo-item').forEach(function (item) {
+      var v = item.querySelector('video');
+      if (v) observer.observe(item);
+    });
+
     grid.addEventListener('click', function (e) {
       var item = e.target.closest('.photo-item');
       if (!item) return;
@@ -814,9 +785,6 @@ function renderProfile(p) {
   }
 }
 
-/* ─────────────────────────────────────────────────
-   Show Grid (back navigation)
-───────────────────────────────────────────────── */
 function showGrid() {
   $profileView.style.display = 'none';
   $gridView.style.display    = 'block';
@@ -826,9 +794,6 @@ function showGrid() {
   if (tg && tg.BackButton) tg.BackButton.hide();
 }
 
-/* ─────────────────────────────────────────────────
-   Profile actions
-───────────────────────────────────────────────── */
 function onMessageClick() {
   if (!currentProfile || !currentProfile.username) return;
   var url = 'https://t.me/' + encodeURIComponent(currentProfile.username);
@@ -851,9 +816,6 @@ function onShareClick() {
   }
 }
 
-/* ─────────────────────────────────────────────────
-   Toast
-───────────────────────────────────────────────── */
 function showToast(msg) {
   $toast.textContent = msg;
   $toast.classList.add('show');
@@ -863,9 +825,6 @@ function showToast(msg) {
   }, 2200);
 }
 
-/* ─────────────────────────────────────────────────
-   Utils — HTML escaping
-───────────────────────────────────────────────── */
 function escHtml(str) {
   if (!str) return '';
   return String(str)
@@ -876,11 +835,10 @@ function escHtml(str) {
     .replace(/'/g,  '&#039;');
 }
 
-/* ─────────────────────────────────────────────────
-   Lightbox
-───────────────────────────────────────────────── */
+/* ── Lightbox ── */
 var $lightbox      = document.getElementById('lightbox');
 var $lightboxImg   = document.getElementById('lightbox-img');
+var $lightboxVideo = document.getElementById('lightbox-video');
 var $lightboxMsg   = document.getElementById('lightbox-msg');
 var $lightboxClose = document.getElementById('lightbox-close');
 var $lightboxDots  = document.getElementById('lightbox-dots');
@@ -900,7 +858,13 @@ function openLightbox(photos, index) {
 function closeLightbox() {
   $lightbox.classList.remove('open');
   $lightboxImg.src = '';
+  $lightboxImg.style.display = '';
   $lightboxImg.className = '';
+  if ($lightboxVideo) {
+    $lightboxVideo.src = '';
+    $lightboxVideo.style.display = 'none';
+    $lightboxVideo.pause();
+  }
   $lightboxDots.innerHTML = '';
   _lbPhotos = [];
   _lbIndex  = 0;
@@ -908,18 +872,26 @@ function closeLightbox() {
 
 function _showLbPhoto(index, dir) {
   _lbIndex = index;
+  var url = _lbPhotos[index];
+  var isVideo = url && /\.(mp4|webm|mov)(\?|$)/i.test(url);
 
-  // Slide animation
-  $lightboxImg.className = '';
-  if (dir) {
-    // Force reflow so animation restarts
-    void $lightboxImg.offsetWidth;
-    $lightboxImg.classList.add(dir === 'next' ? 'lb-anim-left' : 'lb-anim-right');
+  if (isVideo) {
+    $lightboxImg.style.display = 'none';
+    $lightboxVideo.style.display = '';
+    $lightboxVideo.src = url;
+    $lightboxVideo.play().catch(function(){});
+  } else {
+    $lightboxVideo.pause();
+    $lightboxVideo.style.display = 'none';
+    $lightboxImg.style.display = '';
+    $lightboxImg.className = '';
+    if (dir) {
+      void $lightboxImg.offsetWidth;
+      $lightboxImg.classList.add(dir === 'next' ? 'lb-anim-left' : 'lb-anim-right');
+    }
+    $lightboxImg.src = url;
   }
 
-  $lightboxImg.src = _lbPhotos[index];
-
-  // Dots / counter
   var count = _lbPhotos.length;
   if (count <= 1) {
     $lightboxDots.innerHTML = '';
@@ -942,7 +914,6 @@ function _lbPrev() {
   _showLbPhoto((_lbIndex - 1 + _lbPhotos.length) % _lbPhotos.length, 'prev');
 }
 
-// Touch swipe
 $lightbox.addEventListener('touchstart', function (e) {
   _lbTouchX = e.touches[0].clientX;
   _lbTouchY = e.touches[0].clientY;
@@ -965,9 +936,6 @@ $lightboxMsg.addEventListener('click', function () {
   onMessageClick();
 });
 
-/* ─────────────────────────────────────────────────
-   Boot
-───────────────────────────────────────────────── */
 init();
 </script>
 
