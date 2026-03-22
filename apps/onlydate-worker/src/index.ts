@@ -337,32 +337,39 @@ app.post('/api/onlydate/admin/photo/cover', async (c) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/onlydate/admin/persona/create
-// Body: { display_name: string, handle: string, is_active?: boolean }
+// Body: { display_name: string, handle: string, age: number, bio?: string }
 // ─────────────────────────────────────────────────────────────────────────────
 app.post('/api/onlydate/admin/persona/create', async (c) => {
   if (!isAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
 
-  let body: { display_name?: string; handle?: string; is_active?: boolean };
+  let body: { display_name?: string; handle?: string; age?: number; bio?: string };
   try { body = await c.req.json(); } catch { return c.json({ error: 'Bad JSON' }, 400); }
 
   const displayName = body.display_name?.trim();
   const handle      = body.handle?.trim().replace(/^@/, '').trim();
-  if (!displayName) return c.json({ error: 'display_name required' }, 400);
-  if (!handle)      return c.json({ error: 'handle required' }, 400);
+  const age         = Number(body.age);
+  if (!displayName)       return c.json({ error: 'display_name required' }, 400);
+  if (!handle)            return c.json({ error: 'handle required' }, 400);
+  if (!age || age < 18)   return c.json({ error: 'age must be 18+' }, 400);
 
-  const id       = crypto.randomUUID();
-  const isActive = body.is_active !== false ? 1 : 0;
-  const now      = Date.now();
+  const id  = crypto.randomUUID();
+  const now = Date.now();
+  const bio = body.bio?.trim() || '';
 
   try {
     await c.env.DB.prepare(`
-      INSERT INTO personas (id, display_name, handle, is_active, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(id, displayName, handle, isActive, now).run();
+      INSERT INTO personas (
+        id, display_name, name, handle,
+        user_id, business_connection_id,
+        age, bio, behavioral_tone,
+        is_active, is_featured,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?)
+    `).bind(id, displayName, displayName, handle, 'admin', 'admin', age, bio, '', now, now).run();
 
     return c.json({
       ok: true,
-      persona: { id, name: displayName, username: handle, is_active: isActive === 1, photos: [] },
+      persona: { id, name: displayName, username: handle, is_active: true, feed_visible: null, photos: [] },
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
