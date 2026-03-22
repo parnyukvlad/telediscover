@@ -335,6 +335,217 @@
 
     /* ── Empty state ─────────────────────────────── */
     .empty { text-align: center; padding: 64px 20px; color: var(--muted); font-size: 14px; }
+
+    /* ── Feed mode toggle bar ────────────────────── */
+    .feed-mode-bar {
+      padding: 10px 16px 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .feed-mode-label {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      flex-shrink: 0;
+    }
+    .feed-mode-pills {
+      display: flex;
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 3px;
+      gap: 3px;
+    }
+    .feed-pill {
+      padding: 5px 14px;
+      border-radius: 6px;
+      border: none;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--font);
+      color: var(--muted);
+      background: transparent;
+      transition: color 0.15s, background 0.15s;
+      cursor: pointer;
+    }
+    .feed-pill.active {
+      background: var(--accent);
+      color: #fff;
+    }
+    .feed-mode-count {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* ── Active/Inactive badge ───────────────────── */
+    .badge-inactive {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--red);
+      border: 1px solid var(--red);
+      border-radius: 4px;
+      padding: 1px 5px;
+      letter-spacing: 0.4px;
+      margin-left: 6px;
+      vertical-align: middle;
+      text-transform: uppercase;
+    }
+
+    /* ── Row action buttons (feed + active toggle) ── */
+    .row-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      flex-shrink: 0;
+      align-items: flex-end;
+    }
+    .btn-toggle-active,
+    .btn-feed-vis {
+      flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: transparent;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 20px;
+      letter-spacing: 0.3px;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-toggle-active:hover,
+    .btn-feed-vis:hover { color: var(--text); border-color: rgba(255,255,255,0.3); }
+    .btn-toggle-active.active-state {
+      color: var(--green);
+      border-color: var(--green);
+    }
+    /* Feed visibility states */
+    .btn-feed-vis.feed-excluded {
+      color: var(--red);
+      border-color: var(--red);
+    }
+    .btn-feed-vis.feed-included {
+      color: var(--green);
+      border-color: var(--green);
+    }
+    /* Row dimming for personas not in current feed */
+    .persona-row.not-in-feed .persona-name,
+    .persona-row.not-in-feed .persona-meta {
+      opacity: 0.45;
+    }
+    .persona-row.not-in-feed .persona-avatar {
+      opacity: 0.35;
+    }
+
+    /* ── Add persona button ───────────────────────── */
+    .btn-add-persona {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-size: 20px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: opacity 0.15s;
+    }
+    .btn-add-persona:active { opacity: 0.8; }
+
+    /* ── Modal ───────────────────────────────────── */
+    #modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    #modal-overlay.open { display: flex; }
+    .modal-card {
+      background: var(--surface);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 32px 28px;
+      width: 100%;
+      max-width: 400px;
+    }
+    .modal-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 22px;
+    }
+    .modal-field {
+      margin-bottom: 14px;
+    }
+    .modal-label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .modal-input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1.5px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 11px 14px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.18s;
+    }
+    .modal-input:focus { border-color: var(--accent); }
+    .modal-checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 22px;
+    }
+    .modal-checkbox-row input[type=checkbox] {
+      width: 18px; height: 18px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .modal-checkbox-row label { font-size: 14px; cursor: pointer; }
+    .modal-btns {
+      display: flex;
+      gap: 10px;
+    }
+    .modal-btn-cancel {
+      flex: 1;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: transparent;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 0.15s;
+    }
+    .modal-btn-cancel:hover { background: var(--surface2); }
+    .modal-btn-submit {
+      flex: 2;
+      padding: 12px;
+      border-radius: 10px;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      transition: opacity 0.15s;
+    }
+    .modal-btn-submit:active { opacity: 0.8; }
+    .modal-btn-submit:disabled { opacity: 0.5; }
   </style>
 </head>
 <body>
@@ -364,11 +575,20 @@
   <div class="topbar">
     <button class="topbar-back hidden" id="back-btn" aria-label="Back">←</button>
     <div class="topbar-title" id="topbar-title">📸 Photo Admin</div>
+    <button class="btn-add-persona" id="add-persona-btn" title="Add persona">+</button>
     <button class="topbar-logout" id="logout-btn">Logout</button>
   </div>
 
   <!-- Personas list -->
   <div id="personas-view">
+    <div class="feed-mode-bar">
+      <span class="feed-mode-label">Feed</span>
+      <div class="feed-mode-pills">
+        <button class="feed-pill" id="pill-all" data-mode="all">Show all</button>
+        <button class="feed-pill" id="pill-selected" data-mode="selected">Selected only</button>
+      </div>
+      <span class="feed-mode-count" id="feed-count"></span>
+    </div>
     <div class="search-wrap">
       <input class="search-input" id="search-input" type="search" placeholder="🔍  Search personas…" />
     </div>
@@ -386,6 +606,29 @@
 
 </div>
 
+<!-- ═══ ADD PERSONA MODAL ══════════════════════════ -->
+<div id="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-title">➕ Add Persona</div>
+    <div class="modal-field">
+      <label class="modal-label" for="modal-name">Display Name</label>
+      <input class="modal-input" id="modal-name" type="text" placeholder="e.g. Sofia Rossi" autocomplete="off" />
+    </div>
+    <div class="modal-field">
+      <label class="modal-label" for="modal-handle">Handle (without @)</label>
+      <input class="modal-input" id="modal-handle" type="text" placeholder="e.g. sofia_rossi" autocomplete="off" />
+    </div>
+    <div class="modal-checkbox-row">
+      <input type="checkbox" id="modal-active" checked />
+      <label for="modal-active">Active (visible in the app)</label>
+    </div>
+    <div class="modal-btns">
+      <button class="modal-btn-cancel" id="modal-cancel">Cancel</button>
+      <button class="modal-btn-submit" id="modal-submit">Create</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ TOAST ══════════════════════════════════════ -->
 <div id="toast"></div>
 
@@ -396,25 +639,36 @@ const API_BASE = 'https://onlydate-api.tg-saas.workers.dev';
 const SESSION_KEY = 'od_admin_pw';
 
 /* ── DOM refs ─────────────────────────────────── */
-const $lock         = document.getElementById('lock');
-const $app          = document.getElementById('app');
-const $pwInput      = document.getElementById('pw-input');
-const $pwBtn        = document.getElementById('pw-btn');
-const $logoutBtn    = document.getElementById('logout-btn');
-const $backBtn      = document.getElementById('back-btn');
-const $topbarTitle  = document.getElementById('topbar-title');
-const $personasView = document.getElementById('personas-view');
-const $photosView   = document.getElementById('photos-view');
-const $personaList  = document.getElementById('persona-list');
-const $photosGrid   = document.getElementById('photos-grid');
-const $searchInput  = document.getElementById('search-input');
-const $toast        = document.getElementById('toast');
+const $lock          = document.getElementById('lock');
+const $app           = document.getElementById('app');
+const $pwInput       = document.getElementById('pw-input');
+const $pwBtn         = document.getElementById('pw-btn');
+const $logoutBtn     = document.getElementById('logout-btn');
+const $backBtn       = document.getElementById('back-btn');
+const $topbarTitle   = document.getElementById('topbar-title');
+const $personasView  = document.getElementById('personas-view');
+const $photosView    = document.getElementById('photos-view');
+const $personaList   = document.getElementById('persona-list');
+const $photosGrid    = document.getElementById('photos-grid');
+const $searchInput   = document.getElementById('search-input');
+const $toast         = document.getElementById('toast');
+const $addPersonaBtn = document.getElementById('add-persona-btn');
+const $modalOverlay  = document.getElementById('modal-overlay');
+const $modalName     = document.getElementById('modal-name');
+const $modalHandle   = document.getElementById('modal-handle');
+const $modalActive   = document.getElementById('modal-active');
+const $modalCancel   = document.getElementById('modal-cancel');
+const $modalSubmit   = document.getElementById('modal-submit');
+const $pillAll       = document.getElementById('pill-all');
+const $pillSelected  = document.getElementById('pill-selected');
+const $feedCount     = document.getElementById('feed-count');
 
 /* ── State ────────────────────────────────────── */
 let password      = '';
 let allPersonas   = [];
 let currentPersId = null;
 let toastTimer    = null;
+let feedMode      = 'all'; // 'all' | 'selected'
 
 /* ── Boot ─────────────────────────────────────── */
 const saved = sessionStorage.getItem(SESSION_KEY);
@@ -455,6 +709,7 @@ function showApp() {
   $lock.style.display = 'none';
   $app.style.display = 'block';
   if (allPersonas.length === 0) loadPersonas();
+  loadFeedSettings();
 }
 
 /* ── Load personas ────────────────────────────── */
@@ -473,32 +728,129 @@ async function loadPersonas() {
   }
 }
 
+/* ── Feed settings ────────────────────────────── */
+async function loadFeedSettings() {
+  try {
+    var res = await fetch(API_BASE + '/api/onlydate/admin/feed-settings', {
+      headers: { 'X-Admin-Password': password }
+    });
+    if (!res.ok) return;
+    var data = await res.json();
+    feedMode = data.mode || 'all';
+    updateFeedModeUI();
+  } catch {}
+}
+
+function updateFeedModeUI() {
+  $pillAll.classList.toggle('active', feedMode === 'all');
+  $pillSelected.classList.toggle('active', feedMode === 'selected');
+  // Count how many are in the feed right now
+  var inFeed = allPersonas.filter(function (p) {
+    if (feedMode === 'selected') return p.feed_visible === 1;
+    return p.feed_visible !== 0;
+  }).length;
+  $feedCount.textContent = inFeed + ' in feed';
+}
+
+document.querySelector('.feed-mode-pills').addEventListener('click', async function (e) {
+  var btn = e.target.closest('.feed-pill');
+  if (!btn) return;
+  var newMode = btn.dataset.mode;
+  if (newMode === feedMode) return;
+  btn.disabled = true;
+  try {
+    var res = await fetch(API_BASE + '/api/onlydate/admin/feed-settings', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+      body:    JSON.stringify({ mode: newMode }),
+    });
+    if (!res.ok) throw new Error();
+    feedMode = newMode;
+    updateFeedModeUI();
+    renderPersonaList(
+      $searchInput.value.trim()
+        ? allPersonas.filter(function (p) {
+            var q = $searchInput.value.trim().toLowerCase();
+            return p.name.toLowerCase().includes(q) || (p.username||'').toLowerCase().includes(q);
+          })
+        : allPersonas
+    );
+    showToast(newMode === 'all' ? 'Feed mode: Show all' : 'Feed mode: Selected only');
+  } catch {
+    showToast('Error — try again');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 /* ── Render personas list ─────────────────────── */
+function isInFeed(p) {
+  if (feedMode === 'selected') return p.feed_visible === 1;
+  return p.feed_visible !== 0; // all mode: in feed unless explicitly excluded
+}
+
+function feedVisBtn(p) {
+  var inFeed = isInFeed(p);
+  if (feedMode === 'all') {
+    if (p.feed_visible === 0) {
+      // Explicitly excluded → show "Excluded" (red), click restores to null
+      return '<button class="btn-feed-vis feed-excluded" data-action="feed-vis" ' +
+        'data-persona-id="' + escHtml(p.id) + '" data-next-vis="null">Excluded</button>';
+    }
+    // In feed (null or 1) → show "Exclude" button
+    return '<button class="btn-feed-vis" data-action="feed-vis" ' +
+      'data-persona-id="' + escHtml(p.id) + '" data-next-vis="0">Exclude</button>';
+  } else {
+    // selected mode
+    if (p.feed_visible === 1) {
+      // Explicitly included → show "In feed" (green), click removes
+      return '<button class="btn-feed-vis feed-included" data-action="feed-vis" ' +
+        'data-persona-id="' + escHtml(p.id) + '" data-next-vis="null">In feed</button>';
+    }
+    // Not in feed → show "+ Add" button
+    return '<button class="btn-feed-vis" data-action="feed-vis" ' +
+      'data-persona-id="' + escHtml(p.id) + '" data-next-vis="1">+ Add</button>';
+  }
+}
+
 function renderPersonaList(personas) {
   if (personas.length === 0) {
     $personaList.innerHTML = '<div class="empty">No personas found.</div>';
     return;
   }
   $personaList.innerHTML = personas.map(function (p) {
-    // First visible photo as avatar, else first photo
-    const firstVisible = p.photos.find(function (ph) { return !ph.is_hidden; });
-    const firstPhoto   = p.photos[0];
-    const avatar       = (firstVisible || firstPhoto || {}).file_url || '';
-    const visCount     = p.photos.filter(function (ph) { return !ph.is_hidden; }).length;
-    const handle       = (p.username || '').replace(/^@/, '');
+    const firstVisible  = p.photos.find(function (ph) { return !ph.is_hidden; });
+    const firstPhoto    = p.photos[0];
+    const avatar        = (firstVisible || firstPhoto || {}).file_url || '';
+    const visCount      = p.photos.filter(function (ph) { return !ph.is_hidden; }).length;
+    const handle        = (p.username || '').replace(/^@/, '');
+    const inactiveBadge = p.is_active ? '' : '<span class="badge-inactive">inactive</span>';
+    const photosMeta    = p.photos.length === 0
+      ? 'No photos'
+      : visCount + ' visible / ' + p.photos.length + ' total';
+    const activeLabel   = p.is_active ? 'Deactivate' : 'Activate';
+    const activeClass   = p.is_active ? '' : ' active-state';
+    const notInFeedClass = isInFeed(p) ? '' : ' not-in-feed';
     return (
-      '<div class="persona-row" data-persona-id="' + escHtml(p.id) + '">' +
+      '<div class="persona-row' + notInFeedClass + '" data-persona-id="' + escHtml(p.id) + '">' +
         '<img class="persona-avatar" src="' + escHtml(avatar) + '" alt="" ' +
             'onerror="this.style.opacity=\'0\'">' +
         '<div class="persona-info">' +
-          '<div class="persona-name">' + escHtml(p.name) + '</div>' +
-          '<div class="persona-meta">@' + escHtml(handle) + ' · ' +
-            visCount + ' visible / ' + p.photos.length + ' total</div>' +
+          '<div class="persona-name">' + escHtml(p.name) + inactiveBadge + '</div>' +
+          '<div class="persona-meta">@' + escHtml(handle) + ' · ' + photosMeta + '</div>' +
+        '</div>' +
+        '<div class="row-actions">' +
+          feedVisBtn(p) +
+          '<button class="btn-toggle-active' + activeClass + '" data-action="toggle-active" ' +
+              'data-persona-id="' + escHtml(p.id) + '" data-is-active="' + (p.is_active ? '1' : '0') + '">' +
+            activeLabel +
+          '</button>' +
         '</div>' +
         '<div class="persona-arrow">›</div>' +
       '</div>'
     );
   }).join('');
+  updateFeedModeUI();
 }
 
 /* ── Search ───────────────────────────────────── */
@@ -513,8 +865,79 @@ $searchInput.addEventListener('input', function () {
   renderPersonaList(filtered);
 });
 
-/* ── Persona click → photos view ──────────────── */
-$personaList.addEventListener('click', function (e) {
+/* ── Persona list click ───────────────────────── */
+$personaList.addEventListener('click', async function (e) {
+  // Feed visibility button
+  var feedBtn = e.target.closest('[data-action="feed-vis"]');
+  if (feedBtn) {
+    e.stopPropagation();
+    var pid     = feedBtn.dataset.personaId;
+    var nextRaw = feedBtn.dataset.nextVis;
+    var nextVal = nextRaw === '1' ? 1 : nextRaw === '0' ? 0 : null;
+    feedBtn.disabled = true;
+    try {
+      var res = await fetch(API_BASE + '/api/onlydate/admin/persona/set-feed-visibility', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+        body:    JSON.stringify({ persona_id: pid, feed_visible: nextVal }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var persona = allPersonas.find(function (p) { return p.id === pid; });
+      if (persona) persona.feed_visible = nextVal;
+      renderPersonaList(
+        $searchInput.value.trim()
+          ? allPersonas.filter(function (p) {
+              var q = $searchInput.value.trim().toLowerCase();
+              return p.name.toLowerCase().includes(q) || (p.username||'').toLowerCase().includes(q);
+            })
+          : allPersonas
+      );
+      if (feedMode === 'all') {
+        showToast(nextVal === 0 ? 'Excluded from feed' : 'Restored to feed');
+      } else {
+        showToast(nextVal === 1 ? 'Added to feed' : 'Removed from feed');
+      }
+    } catch {
+      showToast('Error — try again');
+    } finally {
+      feedBtn.disabled = false;
+    }
+    return;
+  }
+
+  // Toggle active button
+  var btn = e.target.closest('[data-action="toggle-active"]');
+  if (btn) {
+    e.stopPropagation();
+    var pid      = btn.dataset.personaId;
+    var newActive = btn.dataset.isActive !== '1';
+    btn.disabled = true;
+    try {
+      var res = await fetch(API_BASE + '/api/onlydate/admin/persona/toggle-active', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+        body:    JSON.stringify({ persona_id: pid, is_active: newActive }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var persona = allPersonas.find(function (p) { return p.id === pid; });
+      if (persona) persona.is_active = newActive;
+      renderPersonaList(
+        $searchInput.value.trim()
+          ? allPersonas.filter(function (p) {
+              var q = $searchInput.value.trim().toLowerCase();
+              return p.name.toLowerCase().includes(q) || (p.username||'').toLowerCase().includes(q);
+            })
+          : allPersonas
+      );
+      showToast(newActive ? 'Activated' : 'Deactivated');
+    } catch {
+      showToast('Error — try again');
+    } finally {
+      btn.disabled = false;
+    }
+    return;
+  }
+  // Open photos
   var row = e.target.closest('.persona-row');
   if (!row) return;
   openPersonaPhotos(row.dataset.personaId);
@@ -525,10 +948,11 @@ function openPersonaPhotos(personaId) {
   if (!persona) return;
   currentPersId = personaId;
 
-  $personasView.style.display = 'none';
-  $photosView.style.display   = 'block';
+  $personasView.style.display  = 'none';
+  $photosView.style.display    = 'block';
   $backBtn.classList.remove('hidden');
-  $topbarTitle.textContent    = persona.name;
+  $addPersonaBtn.style.display = 'none';
+  $topbarTitle.textContent     = persona.name;
 
   renderPhotoGrid(persona);
 }
@@ -536,10 +960,11 @@ function openPersonaPhotos(personaId) {
 /* ── Back ─────────────────────────────────────── */
 $backBtn.addEventListener('click', showPersonasView);
 function showPersonasView() {
-  $photosView.style.display   = 'none';
-  $personasView.style.display = 'block';
+  $photosView.style.display    = 'none';
+  $personasView.style.display  = 'block';
   $backBtn.classList.add('hidden');
-  $topbarTitle.textContent    = '📸 Photo Admin';
+  $addPersonaBtn.style.display = '';
+  $topbarTitle.textContent     = '📸 Photo Admin';
   currentPersId = null;
   // Refresh persona list meta (visible counts may have changed)
   renderPersonaList(
@@ -639,6 +1064,71 @@ $photosGrid.addEventListener('click', async function (e) {
     }
   }
 });
+
+/* ── Add persona modal ────────────────────────── */
+$addPersonaBtn.addEventListener('click', function () {
+  $modalName.value     = '';
+  $modalHandle.value   = '';
+  $modalActive.checked = true;
+  $modalOverlay.classList.add('open');
+  $modalName.focus();
+});
+
+$modalCancel.addEventListener('click', function () {
+  $modalOverlay.classList.remove('open');
+});
+
+$modalOverlay.addEventListener('click', function (e) {
+  if (e.target === $modalOverlay) $modalOverlay.classList.remove('open');
+});
+
+// Auto-fill handle from name
+$modalName.addEventListener('input', function () {
+  if ($modalHandle.dataset.edited) return;
+  $modalHandle.value = $modalName.value.trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
+});
+$modalHandle.addEventListener('input', function () {
+  $modalHandle.dataset.edited = '1';
+});
+
+$modalSubmit.addEventListener('click', submitNewPersona);
+$modalName.addEventListener('keydown',   function (e) { if (e.key === 'Enter') $modalHandle.focus(); });
+$modalHandle.addEventListener('keydown', function (e) { if (e.key === 'Enter') submitNewPersona(); });
+
+async function submitNewPersona() {
+  var name   = $modalName.value.trim();
+  var handle = $modalHandle.value.trim().replace(/^@/, '');
+  if (!name)   { $modalName.focus();   showToast('Enter display name'); return; }
+  if (!handle) { $modalHandle.focus(); showToast('Enter handle'); return; }
+
+  $modalSubmit.disabled = true;
+  $modalSubmit.textContent = 'Creating…';
+  try {
+    var res = await fetch(API_BASE + '/api/onlydate/admin/persona/create', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+      body:    JSON.stringify({ display_name: name, handle: handle, is_active: $modalActive.checked }),
+    });
+    var data = await res.json();
+    if (!res.ok) {
+      showToast(data.error || 'Error creating persona');
+      return;
+    }
+    allPersonas.unshift(data.persona);
+    $modalOverlay.classList.remove('open');
+    delete $modalHandle.dataset.edited;
+    renderPersonaList(allPersonas);
+    showToast('Persona created ✓');
+  } catch {
+    showToast('Connection error');
+  } finally {
+    $modalSubmit.disabled = false;
+    $modalSubmit.textContent = 'Create';
+  }
+}
 
 /* ── Logout ───────────────────────────────────── */
 $logoutBtn.addEventListener('click', doLogout);

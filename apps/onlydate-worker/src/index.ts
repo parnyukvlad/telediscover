@@ -26,6 +26,24 @@ app.use('*', async (c, next) => {
 // ─── Health ───────────────────────────────────────────────────────────────────
 app.get('/', (c) => c.json({ name: 'OnlyDate API', status: 'ok' }));
 
+// ─── Feed settings helper ─────────────────────────────────────────────────────
+async function getFeedMode(db: D1Database): Promise<'all' | 'selected'> {
+  try {
+    const row = await db.prepare(`SELECT value FROM app_settings WHERE key = 'feed_mode'`)
+      .first() as { value: string } | null;
+    return (row?.value === 'selected') ? 'selected' : 'all';
+  } catch {
+    return 'all';
+  }
+}
+
+// feed_visible: NULL = follow mode, 1 = force show, 0 = force hide
+function feedVisibilityFilter(mode: 'all' | 'selected'): string {
+  return mode === 'selected'
+    ? `p.feed_visible = 1`
+    : `(p.feed_visible IS NULL OR p.feed_visible = 1)`;
+}
+
 // ─── SQL fragments (visibility-aware) ────────────────────────────────────────
 // cover_photo: prefers admin-set cover, falls back to oldest visible photo
 // NOTE: D1 SQLite does NOT allow outer-query aliases (p.id) in subquery ORDER BY.
@@ -73,13 +91,15 @@ const HAS_FREE_PHOTO = `(
     AND  (opc2.is_hidden IS NULL OR opc2.is_hidden = 0)
 ) > 0`;
 
-const BASE_WHERE = `p.is_active = 1 AND p.handle IS NOT NULL AND ${HAS_FREE_PHOTO}`;
-
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/onlydate/models?tab=trending|popular|new
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/onlydate/models', async (c) => {
   const tab = c.req.query('tab') ?? 'trending';
+
+  const feedMode   = await getFeedMode(c.env.DB);
+  const feedFilter = feedVisibilityFilter(feedMode);
+  const baseWhere  = `p.is_active = 1 AND p.handle IS NOT NULL AND ${feedFilter} AND ${HAS_FREE_PHOTO}`;
 
   let msgCount: string;
   let orderBy: string;
@@ -106,7 +126,7 @@ app.get('/api/onlydate/models', async (c) => {
       ${COVER_PHOTO} AS cover_photo,
       ${msgCount}    AS message_count
     FROM personas p
-    WHERE ${BASE_WHERE}
+    WHERE ${baseWhere}
     ORDER BY ${orderBy}
     LIMIT 100
   `;
@@ -128,6 +148,9 @@ app.get('/api/onlydate/models', async (c) => {
 app.get('/api/onlydate/models/:username', async (c) => {
   const username = c.req.param('username');
 
+  const feedMode   = await getFeedMode(c.env.DB);
+  const feedFilter = feedVisibilityFilter(feedMode);
+
   const personaSql = `
     SELECT
       p.id,
@@ -136,7 +159,7 @@ app.get('/api/onlydate/models/:username', async (c) => {
       ${COVER_PHOTO} AS cover_photo,
       (SELECT COUNT(*) FROM message_history mh WHERE mh.persona_id = p.id) AS message_count
     FROM personas p
-    WHERE p.is_active = 1 AND p.handle = ?
+    WHERE p.is_active = 1 AND p.handle = ? AND ${feedFilter}
     LIMIT 1
   `;
 
@@ -185,7 +208,7 @@ app.get('/api/onlydate/models/:username', async (c) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/onlydate/admin/personas
-// Returns all active personas with ALL their free photos + visibility config
+// Returns ALL personas (active + inactive, with or without photos)
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/onlydate/admin/personas', async (c) => {
   if (!isAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
@@ -195,46 +218,52 @@ app.get('/api/onlydate/admin/personas', async (c) => {
       p.id           AS persona_id,
       p.display_name AS persona_name,
       p.handle       AS persona_username,
+      p.is_active    AS is_active,
+      p.feed_visible AS feed_visible,
       ml.id          AS media_id,
       mf.file_url,
       COALESCE(opc.is_hidden, 0)                                     AS is_hidden,
       CASE WHEN opc.is_cover_for_persona = p.id THEN 1 ELSE 0 END   AS is_cover
     FROM personas p
-    JOIN media_library ml
+    LEFT JOIN media_library ml
       ON ml.persona_id = p.id
      AND ml.category = 'casual'
      AND (ml.price_stars IS NULL OR ml.price_stars = 0)
      AND ml.type = 'photo'
-    JOIN media_files mf ON mf.media_id = ml.id
+    LEFT JOIN media_files mf ON mf.media_id = ml.id
     LEFT JOIN onlydate_photo_config opc ON opc.media_id = ml.id
-    WHERE p.is_active = 1 AND p.handle IS NOT NULL
     ORDER BY p.display_name ASC, ml.created_at ASC, mf.file_order ASC
-    LIMIT 2000
+    LIMIT 5000
   `;
 
   try {
     const result = await c.env.DB.prepare(sql).all();
 
     type PhotoRow = { media_id: string; file_url: string; is_hidden: boolean; is_cover: boolean };
-    type PersonaEntry = { id: string; name: string; username: string; photos: PhotoRow[] };
+    type PersonaEntry = { id: string; name: string; username: string; is_active: boolean; feed_visible: number | null; photos: PhotoRow[] };
 
     const map = new Map<string, PersonaEntry>();
     for (const row of result.results as Record<string, unknown>[]) {
       const pid = row.persona_id as string;
       if (!map.has(pid)) {
         map.set(pid, {
-          id:       pid,
-          name:     row.persona_name as string,
-          username: row.persona_username as string,
-          photos:   [],
+          id:           pid,
+          name:         row.persona_name as string,
+          username:     row.persona_username as string,
+          is_active:    (row.is_active as number) === 1,
+          feed_visible: row.feed_visible as number | null,
+          photos:       [],
         });
       }
-      map.get(pid)!.photos.push({
-        media_id:  row.media_id as string,
-        file_url:  row.file_url as string,
-        is_hidden: (row.is_hidden as number) === 1,
-        is_cover:  (row.is_cover as number) === 1,
-      });
+      // Only push if there's actually a photo row (LEFT JOIN may produce NULLs)
+      if (row.media_id) {
+        map.get(pid)!.photos.push({
+          media_id:  row.media_id as string,
+          file_url:  row.file_url as string,
+          is_hidden: (row.is_hidden as number) === 1,
+          is_cover:  (row.is_cover as number) === 1,
+        });
+      }
     }
 
     return c.json({ personas: Array.from(map.values()) });
@@ -302,6 +331,127 @@ app.post('/api/onlydate/admin/photo/cover', async (c) => {
     return c.json({ ok: true });
   } catch (err) {
     console.error('[OnlyDate] admin/photo/cover error:', err);
+    return c.json({ error: 'Failed' }, 500);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/onlydate/admin/persona/create
+// Body: { display_name: string, handle: string, is_active?: boolean }
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/onlydate/admin/persona/create', async (c) => {
+  if (!isAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+
+  let body: { display_name?: string; handle?: string; is_active?: boolean };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Bad JSON' }, 400); }
+
+  const displayName = body.display_name?.trim();
+  const handle      = body.handle?.trim().replace(/^@/, '').trim();
+  if (!displayName) return c.json({ error: 'display_name required' }, 400);
+  if (!handle)      return c.json({ error: 'handle required' }, 400);
+
+  const id       = crypto.randomUUID();
+  const isActive = body.is_active !== false ? 1 : 0;
+  const now      = Date.now();
+
+  try {
+    await c.env.DB.prepare(`
+      INSERT INTO personas (id, display_name, handle, is_active, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(id, displayName, handle, isActive, now).run();
+
+    return c.json({
+      ok: true,
+      persona: { id, name: displayName, username: handle, is_active: isActive === 1, photos: [] },
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.toLowerCase().includes('unique')) {
+      return c.json({ error: 'Handle already exists' }, 409);
+    }
+    console.error('[OnlyDate] admin/persona/create error:', err);
+    return c.json({ error: 'Failed to create' }, 500);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/onlydate/admin/feed-settings
+// Returns current feed mode
+// ─────────────────────────────────────────────────────────────────────────────
+app.get('/api/onlydate/admin/feed-settings', async (c) => {
+  if (!isAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+  const mode = await getFeedMode(c.env.DB);
+  return c.json({ mode });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/onlydate/admin/feed-settings
+// Body: { mode: 'all' | 'selected' }
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/onlydate/admin/feed-settings', async (c) => {
+  if (!isAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+
+  let body: { mode?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Bad JSON' }, 400); }
+  if (body.mode !== 'all' && body.mode !== 'selected') {
+    return c.json({ error: 'mode must be "all" or "selected"' }, 400);
+  }
+
+  try {
+    await c.env.DB.prepare(`
+      INSERT INTO app_settings (key, value) VALUES ('feed_mode', ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `).bind(body.mode).run();
+    return c.json({ ok: true, mode: body.mode });
+  } catch (err) {
+    console.error('[OnlyDate] admin/feed-settings error:', err);
+    return c.json({ error: 'Failed' }, 500);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/onlydate/admin/persona/set-feed-visibility
+// Body: { persona_id: string, feed_visible: 0 | 1 | null }
+// null = follow global mode, 1 = force show, 0 = force hide
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/onlydate/admin/persona/set-feed-visibility', async (c) => {
+  if (!isAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+
+  let body: { persona_id?: string; feed_visible?: number | null };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Bad JSON' }, 400); }
+  if (!body.persona_id) return c.json({ error: 'persona_id required' }, 400);
+
+  const val = body.feed_visible === 1 ? 1 : body.feed_visible === 0 ? 0 : null;
+
+  try {
+    await c.env.DB.prepare(`UPDATE personas SET feed_visible = ? WHERE id = ?`)
+      .bind(val, body.persona_id).run();
+    return c.json({ ok: true });
+  } catch (err) {
+    console.error('[OnlyDate] admin/persona/set-feed-visibility error:', err);
+    return c.json({ error: 'Failed' }, 500);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/onlydate/admin/persona/toggle-active
+// Body: { persona_id: string, is_active: boolean }
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/onlydate/admin/persona/toggle-active', async (c) => {
+  if (!isAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+
+  let body: { persona_id?: string; is_active?: boolean };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Bad JSON' }, 400); }
+  if (!body.persona_id) return c.json({ error: 'persona_id required' }, 400);
+
+  const isActive = body.is_active ? 1 : 0;
+
+  try {
+    await c.env.DB.prepare(`UPDATE personas SET is_active = ? WHERE id = ?`)
+      .bind(isActive, body.persona_id).run();
+    return c.json({ ok: true });
+  } catch (err) {
+    console.error('[OnlyDate] admin/persona/toggle-active error:', err);
     return c.json({ error: 'Failed' }, 500);
   }
 });
