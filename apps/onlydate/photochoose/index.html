@@ -619,8 +619,8 @@
       <input class="modal-input" id="modal-handle" type="text" placeholder="e.g. sofia_rossi" autocomplete="off" />
     </div>
     <div class="modal-field">
-      <label class="modal-label" for="modal-age">Age</label>
-      <input class="modal-input" id="modal-age" type="number" placeholder="e.g. 24" min="18" max="99" autocomplete="off" />
+      <label class="modal-label" for="modal-cover">Cover URL (optional)</label>
+      <input class="modal-input" id="modal-cover" type="url" placeholder="https://…" autocomplete="off" />
     </div>
     <div class="modal-btns">
       <button class="modal-btn-cancel" id="modal-cancel">Cancel</button>
@@ -656,7 +656,7 @@ const $addPersonaBtn = document.getElementById('add-persona-btn');
 const $modalOverlay  = document.getElementById('modal-overlay');
 const $modalName     = document.getElementById('modal-name');
 const $modalHandle   = document.getElementById('modal-handle');
-const $modalAge      = document.getElementById('modal-age');
+const $modalCover    = document.getElementById('modal-cover');
 const $modalCancel   = document.getElementById('modal-cancel');
 const $modalSubmit   = document.getElementById('modal-submit');
 const $pillAll       = document.getElementById('pill-all');
@@ -1030,7 +1030,7 @@ $photosGrid.addEventListener('click', async function (e) {
 $addPersonaBtn.addEventListener('click', function () {
   $modalName.value   = '';
   $modalHandle.value = '';
-  $modalAge.value    = '';
+  $modalCover.value  = '';
   $modalOverlay.classList.add('open');
   $modalName.focus();
 });
@@ -1057,16 +1057,15 @@ $modalHandle.addEventListener('input', function () {
 
 $modalSubmit.addEventListener('click', submitNewPersona);
 $modalName.addEventListener('keydown',   function (e) { if (e.key === 'Enter') $modalHandle.focus(); });
-$modalHandle.addEventListener('keydown', function (e) { if (e.key === 'Enter') $modalAge.focus(); });
-$modalAge.addEventListener('keydown',    function (e) { if (e.key === 'Enter') submitNewPersona(); });
+$modalHandle.addEventListener('keydown', function (e) { if (e.key === 'Enter') $modalCover.focus(); });
+$modalCover.addEventListener('keydown',  function (e) { if (e.key === 'Enter') submitNewPersona(); });
 
 async function submitNewPersona() {
-  var name   = $modalName.value.trim();
+  var name  = $modalName.value.trim();
   var handle = $modalHandle.value.trim().replace(/^@/, '');
-  var age    = parseInt($modalAge.value, 10);
-  if (!name)          { $modalName.focus();   showToast('Enter display name'); return; }
-  if (!handle)        { $modalHandle.focus(); showToast('Enter handle'); return; }
-  if (!age || age < 18) { $modalAge.focus();  showToast('Enter age (18+)'); return; }
+  var cover  = $modalCover.value.trim() || null;
+  if (!name)   { $modalName.focus();   showToast('Enter display name'); return; }
+  if (!handle) { $modalHandle.focus(); showToast('Enter handle'); return; }
 
   $modalSubmit.disabled = true;
   $modalSubmit.textContent = 'Creating…';
@@ -1074,7 +1073,7 @@ async function submitNewPersona() {
     var res = await fetch(API_BASE + '/api/onlydate/admin/persona/create', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
-      body:    JSON.stringify({ display_name: name, handle: handle, age: age }),
+      body:    JSON.stringify({ display_name: name, handle: handle, cover_url: cover }),
     });
     var data = await res.json();
     if (!res.ok) {
@@ -1084,7 +1083,7 @@ async function submitNewPersona() {
     allPersonas.unshift(data.persona);
     $modalOverlay.classList.remove('open');
     delete $modalHandle.dataset.edited;
-    $modalAge.value = '';
+    $modalCover.value = '';
     renderPersonaList(allPersonas);
     showToast('Persona created ✓');
   } catch {

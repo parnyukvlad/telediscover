@@ -38,10 +38,11 @@ async function getFeedMode(db: D1Database): Promise<'all' | 'selected'> {
 }
 
 // feed_visible: NULL = follow mode, 1 = force show, 0 = force hide
-function feedVisibilityFilter(mode: 'all' | 'selected'): string {
+// alias = table alias used in query (e.g. 'p' or 'fe')
+function feedFilter(alias: string, mode: 'all' | 'selected'): string {
   return mode === 'selected'
-    ? `p.feed_visible = 1`
-    : `(p.feed_visible IS NULL OR p.feed_visible = 1)`;
+    ? `${alias}.feed_visible = 1`
+    : `(${alias}.feed_visible IS NULL OR ${alias}.feed_visible = 1)`;
 }
 
 // ─── SQL fragments (visibility-aware) ────────────────────────────────────────
@@ -93,13 +94,15 @@ const HAS_FREE_PHOTO = `(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/onlydate/models?tab=trending|popular|new
+// Returns personas (from personas table) UNION feed entries (onlydate_feed_entries)
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/onlydate/models', async (c) => {
   const tab = c.req.query('tab') ?? 'trending';
 
-  const feedMode   = await getFeedMode(c.env.DB);
-  const feedFilter = feedVisibilityFilter(feedMode);
-  const baseWhere  = `p.is_active = 1 AND p.handle IS NOT NULL AND ${feedFilter} AND ${HAS_FREE_PHOTO}`;
+  const mode       = await getFeedMode(c.env.DB);
+  const pFilter    = feedFilter('p', mode);
+  const feFilter   = feedFilter('fe', mode);
+  const baseWhere  = `p.is_active = 1 AND p.handle IS NOT NULL AND ${pFilter} AND ${HAS_FREE_PHOTO}`;
 
   let msgCount: string;
   let orderBy: string;
@@ -107,7 +110,7 @@ app.get('/api/onlydate/models', async (c) => {
 
   if (tab === 'new') {
     msgCount = `(SELECT COUNT(*) FROM message_history mh WHERE mh.persona_id = p.id)`;
-    orderBy  = `p.created_at DESC`;
+    orderBy  = `created_at DESC`;
   } else if (tab === 'trending') {
     const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
     msgCount = `(SELECT COUNT(*) FROM message_history mh WHERE mh.persona_id = p.id AND mh.created_at > ?)`;
@@ -119,14 +122,27 @@ app.get('/api/onlydate/models', async (c) => {
   }
 
   const sql = `
-    SELECT
-      p.id,
-      p.display_name AS name,
-      p.handle       AS username,
-      ${COVER_PHOTO} AS cover_photo,
-      ${msgCount}    AS message_count
-    FROM personas p
-    WHERE ${baseWhere}
+    SELECT id, name, username, cover_photo, message_count FROM (
+      SELECT
+        p.id,
+        p.display_name  AS name,
+        p.handle        AS username,
+        ${COVER_PHOTO}  AS cover_photo,
+        ${msgCount}     AS message_count,
+        p.created_at    AS created_at
+      FROM personas p
+      WHERE ${baseWhere}
+      UNION ALL
+      SELECT
+        fe.id,
+        fe.display_name AS name,
+        fe.handle       AS username,
+        fe.cover_url    AS cover_photo,
+        0               AS message_count,
+        fe.created_at   AS created_at
+      FROM onlydate_feed_entries fe
+      WHERE fe.is_active = 1 AND fe.cover_url IS NOT NULL AND ${feFilter}
+    )
     ORDER BY ${orderBy}
     LIMIT 100
   `;
@@ -148,18 +164,30 @@ app.get('/api/onlydate/models', async (c) => {
 app.get('/api/onlydate/models/:username', async (c) => {
   const username = c.req.param('username');
 
-  const feedMode   = await getFeedMode(c.env.DB);
-  const feedFilter = feedVisibilityFilter(feedMode);
+  const mode     = await getFeedMode(c.env.DB);
+  const pFilter  = feedFilter('p', mode);
+  const feFilter = feedFilter('fe', mode);
 
   const personaSql = `
-    SELECT
-      p.id,
-      p.display_name AS name,
-      p.handle       AS username,
-      ${COVER_PHOTO} AS cover_photo,
-      (SELECT COUNT(*) FROM message_history mh WHERE mh.persona_id = p.id) AS message_count
-    FROM personas p
-    WHERE p.is_active = 1 AND p.handle = ? AND ${feedFilter}
+    SELECT id, name, username, cover_photo, message_count FROM (
+      SELECT
+        p.id,
+        p.display_name AS name,
+        p.handle       AS username,
+        ${COVER_PHOTO} AS cover_photo,
+        (SELECT COUNT(*) FROM message_history mh WHERE mh.persona_id = p.id) AS message_count
+      FROM personas p
+      WHERE p.is_active = 1 AND p.handle = ? AND ${pFilter}
+      UNION ALL
+      SELECT
+        fe.id,
+        fe.display_name AS name,
+        fe.handle       AS username,
+        fe.cover_url    AS cover_photo,
+        0               AS message_count
+      FROM onlydate_feed_entries fe
+      WHERE fe.is_active = 1 AND fe.handle = ? AND ${feFilter}
+    )
     LIMIT 1
   `;
 
@@ -181,7 +209,7 @@ app.get('/api/onlydate/models/:username', async (c) => {
   `;
 
   try {
-    const persona = await c.env.DB.prepare(personaSql).bind(username).first() as Record<string, unknown> | null;
+    const persona = await c.env.DB.prepare(personaSql).bind(username, username).first() as Record<string, unknown> | null;
     if (!persona) return c.json({ error: 'Not found' }, 404);
 
     const photos = await c.env.DB.prepare(photosSql)
@@ -220,6 +248,7 @@ app.get('/api/onlydate/admin/personas', async (c) => {
       p.handle       AS persona_username,
       p.is_active    AS is_active,
       p.feed_visible AS feed_visible,
+      'personas'     AS source,
       ml.id          AS media_id,
       mf.file_url,
       COALESCE(opc.is_hidden, 0)                                     AS is_hidden,
@@ -232,7 +261,20 @@ app.get('/api/onlydate/admin/personas', async (c) => {
      AND ml.type = 'photo'
     LEFT JOIN media_files mf ON mf.media_id = ml.id
     LEFT JOIN onlydate_photo_config opc ON opc.media_id = ml.id
-    ORDER BY p.display_name ASC, ml.created_at ASC, mf.file_order ASC
+    UNION ALL
+    SELECT
+      fe.id           AS persona_id,
+      fe.display_name AS persona_name,
+      fe.handle       AS persona_username,
+      fe.is_active    AS is_active,
+      fe.feed_visible AS feed_visible,
+      'feed_entry'    AS source,
+      NULL            AS media_id,
+      NULL            AS file_url,
+      0               AS is_hidden,
+      0               AS is_cover
+    FROM onlydate_feed_entries fe
+    ORDER BY persona_name ASC
     LIMIT 5000
   `;
 
@@ -240,7 +282,7 @@ app.get('/api/onlydate/admin/personas', async (c) => {
     const result = await c.env.DB.prepare(sql).all();
 
     type PhotoRow = { media_id: string; file_url: string; is_hidden: boolean; is_cover: boolean };
-    type PersonaEntry = { id: string; name: string; username: string; is_active: boolean; feed_visible: number | null; photos: PhotoRow[] };
+    type PersonaEntry = { id: string; name: string; username: string; is_active: boolean; feed_visible: number | null; source: string; photos: PhotoRow[] };
 
     const map = new Map<string, PersonaEntry>();
     for (const row of result.results as Record<string, unknown>[]) {
@@ -252,6 +294,7 @@ app.get('/api/onlydate/admin/personas', async (c) => {
           username:     row.persona_username as string,
           is_active:    (row.is_active as number) === 1,
           feed_visible: row.feed_visible as number | null,
+          source:       row.source as string,
           photos:       [],
         });
       }
@@ -337,39 +380,33 @@ app.post('/api/onlydate/admin/photo/cover', async (c) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/onlydate/admin/persona/create
-// Body: { display_name: string, handle: string, age: number, bio?: string }
+// Creates entry in onlydate_feed_entries (does NOT touch personas table)
+// Body: { display_name: string, handle: string, cover_url?: string }
 // ─────────────────────────────────────────────────────────────────────────────
 app.post('/api/onlydate/admin/persona/create', async (c) => {
   if (!isAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
 
-  let body: { display_name?: string; handle?: string; age?: number; bio?: string };
+  let body: { display_name?: string; handle?: string; cover_url?: string };
   try { body = await c.req.json(); } catch { return c.json({ error: 'Bad JSON' }, 400); }
 
   const displayName = body.display_name?.trim();
   const handle      = body.handle?.trim().replace(/^@/, '').trim();
-  const age         = Number(body.age);
-  if (!displayName)       return c.json({ error: 'display_name required' }, 400);
-  if (!handle)            return c.json({ error: 'handle required' }, 400);
-  if (!age || age < 18)   return c.json({ error: 'age must be 18+' }, 400);
+  if (!displayName) return c.json({ error: 'display_name required' }, 400);
+  if (!handle)      return c.json({ error: 'handle required' }, 400);
 
-  const id  = crypto.randomUUID();
-  const now = Date.now();
-  const bio = body.bio?.trim() || '';
+  const id       = crypto.randomUUID();
+  const now      = Date.now();
+  const coverUrl = body.cover_url?.trim() || null;
 
   try {
     await c.env.DB.prepare(`
-      INSERT INTO personas (
-        id, display_name, name, handle,
-        user_id, business_connection_id,
-        age, bio, behavioral_tone,
-        is_active, is_featured,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?)
-    `).bind(id, displayName, displayName, handle, 'admin', 'admin', age, bio, '', now, now).run();
+      INSERT INTO onlydate_feed_entries (id, display_name, handle, cover_url, is_active, created_at)
+      VALUES (?, ?, ?, ?, 1, ?)
+    `).bind(id, displayName, handle, coverUrl, now).run();
 
     return c.json({
       ok: true,
-      persona: { id, name: displayName, username: handle, is_active: true, feed_visible: null, photos: [] },
+      persona: { id, name: displayName, username: handle, is_active: true, feed_visible: null, source: 'feed_entry', photos: [] },
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -431,7 +468,10 @@ app.post('/api/onlydate/admin/persona/set-feed-visibility', async (c) => {
   const val = body.feed_visible === 1 ? 1 : body.feed_visible === 0 ? 0 : null;
 
   try {
+    // Update whichever table contains this persona (the other will be a no-op)
     await c.env.DB.prepare(`UPDATE personas SET feed_visible = ? WHERE id = ?`)
+      .bind(val, body.persona_id).run();
+    await c.env.DB.prepare(`UPDATE onlydate_feed_entries SET feed_visible = ? WHERE id = ?`)
       .bind(val, body.persona_id).run();
     return c.json({ ok: true });
   } catch (err) {
@@ -454,7 +494,7 @@ app.post('/api/onlydate/admin/persona/toggle-active', async (c) => {
   const isActive = body.is_active ? 1 : 0;
 
   try {
-    await c.env.DB.prepare(`UPDATE personas SET is_active = ? WHERE id = ?`)
+    await c.env.DB.prepare(`UPDATE onlydate_feed_entries SET is_active = ? WHERE id = ?`)
       .bind(isActive, body.persona_id).run();
     return c.json({ ok: true });
   } catch (err) {
