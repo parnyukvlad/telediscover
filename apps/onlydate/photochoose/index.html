@@ -914,7 +914,7 @@ function renderPersonaList(personas) {
   $personaList.innerHTML = personas.map(function (p) {
     const firstVisible  = p.photos.find(function (ph) { return !ph.is_hidden; });
     const firstPhoto    = p.photos[0];
-    const avatar        = (firstVisible || firstPhoto || {}).file_url || '';
+    const avatar        = (firstVisible || firstPhoto || {}).file_url || p.cover_url || '';
     const visCount      = p.photos.filter(function (ph) { return !ph.is_hidden; }).length;
     const handle        = (p.username || '').replace(/^@/, '');
     const photosMeta    = p.photos.length === 0

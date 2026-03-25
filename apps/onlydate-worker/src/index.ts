@@ -122,6 +122,38 @@ app.post('/api/onlydate/admin/feed-entry/photo/delete', async (c) => {
   }
 });
 
+// ─── Admin: delete feed entry + all its photos ───────────────────────────────
+// POST /api/onlydate/admin/feed-entry/delete
+// Body: { feed_entry_id }
+app.post('/api/onlydate/admin/feed-entry/delete', async (c) => {
+  if (!isAdmin(c)) return c.json({ error: 'Unauthorized' }, 401);
+
+  let body: { feed_entry_id?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Bad JSON' }, 400); }
+  if (!body.feed_entry_id) return c.json({ error: 'feed_entry_id required' }, 400);
+
+  try {
+    // Get all photo keys to delete from R2
+    const photos = await c.env.DB.prepare(
+      `SELECT file_key FROM onlydate_feed_photos WHERE feed_entry_id = ?`
+    ).bind(body.feed_entry_id).all();
+
+    // Delete photos from R2 (best effort)
+    await Promise.all(
+      (photos.results as { file_key: string }[]).map((p) => c.env.MEDIA.delete(p.file_key).catch(() => {}))
+    );
+
+    // Delete from DB
+    await c.env.DB.prepare(`DELETE FROM onlydate_feed_photos WHERE feed_entry_id = ?`).bind(body.feed_entry_id).run();
+    await c.env.DB.prepare(`DELETE FROM onlydate_feed_entries WHERE id = ?`).bind(body.feed_entry_id).run();
+
+    return c.json({ ok: true });
+  } catch (err) {
+    console.error('[OnlyDate] feed-entry/delete error:', err);
+    return c.json({ error: 'Failed' }, 500);
+  }
+});
+
 // ─── Admin: update cover for feed entry ──────────────────────────────────────
 // POST /api/onlydate/admin/feed-entry/set-cover
 // Body: { feed_entry_id, file_url }
@@ -368,7 +400,8 @@ app.get('/api/onlydate/admin/personas', async (c) => {
       ml.id          AS media_id,
       mf.file_url,
       COALESCE(opc.is_hidden, 0)                                     AS is_hidden,
-      CASE WHEN opc.is_cover_for_persona = p.id THEN 1 ELSE 0 END   AS is_cover
+      CASE WHEN opc.is_cover_for_persona = p.id THEN 1 ELSE 0 END   AS is_cover,
+      NULL           AS cover_url
     FROM personas p
     LEFT JOIN media_library ml
       ON ml.persona_id = p.id
@@ -388,7 +421,8 @@ app.get('/api/onlydate/admin/personas', async (c) => {
       NULL            AS media_id,
       NULL            AS file_url,
       0               AS is_hidden,
-      0               AS is_cover
+      0               AS is_cover,
+      fe.cover_url    AS cover_url
     FROM onlydate_feed_entries fe
     ORDER BY persona_name ASC
     LIMIT 5000
@@ -431,6 +465,7 @@ app.get('/api/onlydate/admin/personas', async (c) => {
           is_active:    (row.is_active as number) === 1,
           feed_visible: row.feed_visible as number | null,
           source:       row.source as string,
+          cover_url:    (row.cover_url as string | null) ?? undefined,
           photos:       [],
         });
       }
