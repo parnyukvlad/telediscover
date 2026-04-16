@@ -1,0 +1,94 @@
+# Roadmap: OnlyDate — Ad-Launch Readiness
+
+## Overview
+
+This milestone transforms OnlyDate from a working prototype into a measurable ad-launch vehicle. Foundation work (schema + router + credential rotation) unblocks everything. Analytics backend lands next — it is the primary business deliverable, enabling per-user attribution before paid ads go live. The public frontend then gets its portrait layout, chat CTAs, and event instrumentation. Admin tooling (ordering, promotion, profile/image management) follows in two parallel-capable phases. Every phase is additive; the existing URL structure and dual-source UNION feed are preserved throughout.
+
+## Phases
+
+- [ ] **Phase 1: Foundation** - Schema migrations, router modularization, admin password rotation
+- [ ] **Phase 2: Analytics Backend** - Event ingestion endpoint, initData HMAC validation, PostHog relay, TTL cron
+- [ ] **Phase 3: Layout, CTA and Analytics Frontend** - 9:16 portrait layout, chat CTA deeplinks, track() instrumentation, attribution capture
+- [ ] **Phase 4: Admin — Ordering and Promotion** - Drag-drop reorder, promotion toggle, animated star frame on public feed
+- [ ] **Phase 5: Admin — Profile and Image Management** - Edit/hide/soft-delete profiles, gallery management, client-side image resize, build minification
+
+## Phase Details
+
+### Phase 1: Foundation
+**Goal**: The codebase is structurally ready for parallel feature development — schema columns exist, route files are modular, and the admin credential is no longer in source.
+**Depends on**: Nothing (first phase)
+**Requirements**: None (pure enabler — all 32 v1 requirements depend on work done here)
+**Success Criteria** (what must be TRUE):
+  1. `onlydate_feed_entries` has `sort_order` and `is_promoted` columns — confirmed by D1 migration applied without error.
+  2. `onlydate_events` table exists in D1 with correct schema and indexes — confirmed by migration.
+  3. Worker source is split into `routes/` + `shared/` files with no functional change — the existing API responds identically to pre-split behavior.
+  4. `ADMIN_PASSWORD` is no longer a string literal in source; worker reads it from `c.env.ADMIN_PASSWORD` (Wrangler secret).
+**Plans**: TBD
+**Avoids / addresses**: CONCERNS.md [CRITICAL] hardcoded admin password; PITFALLS.md Pitfall 2 (credential exposure widened by new admin endpoints); ARCHITECTURE.md Anti-Pattern 5 (monolithic index.ts past 1000 lines).
+
+### Phase 2: Analytics Backend
+**Goal**: The server can receive, validate, store, and forward analytics events — and the data is trustworthy because every event is bound to a server-side HMAC-validated Telegram user ID.
+**Depends on**: Phase 1
+**Requirements**: TRACK-01, TRACK-02, TRACK-03, TRACK-04, TRACK-05, TRACK-06, TRACK-07, TRACK-08
+**Success Criteria** (what must be TRUE):
+  1. `POST /api/onlydate/track` accepts events and writes them to `onlydate_events` in D1 — raw rows visible in the D1 dashboard after a test call.
+  2. A request with a tampered `initData` hash is rejected with 403 — no row is written to D1 for it.
+  3. Events appear in PostHog within seconds of being sent — visible in PostHog's Live Events view without any user-facing latency increase.
+  4. A scheduled cron runs daily and deletes `onlydate_events` rows older than 90 days — confirmed by cron trigger in `wrangler.toml` and the scheduled handler in the Worker.
+  5. `start_param` and `utm_*` fields are stored on `session_start` events — operator can see attribution source per user in the D1 raw log.
+**Plans**: TBD
+**Avoids / addresses**: PITFALLS.md Pitfall 1 (initDataUnsafe without HMAC), Pitfall 5 (dropped PostHog events via missing ctx.waitUntil), Pitfall 6 (bare user_id as PostHog distinctId), Pitfall 7 (Telegram PII in PostHog), Pitfall 8 (D1 table growth — indexes + retention), Pitfall 11 (Mini App HMAC key derivation vs Login Widget), Pitfall 14 (bot token freshness).
+
+### Phase 3: Layout, CTA and Analytics Frontend
+**Goal**: Users experience a focused, portrait-mode app on every platform, can tap directly into a Telegram DM from any profile, and every such interaction is captured as an analytics event.
+**Depends on**: Phase 2 (tracking endpoint must exist before frontend instrumentation can send real events)
+**Requirements**: LAYOUT-01, LAYOUT-02, LAYOUT-03, CHAT-01, CHAT-02, CHAT-03, PERF-01, PERF-02, PERF-05
+**Success Criteria** (what must be TRUE):
+  1. On mobile Telegram the app fills the screen in portrait; on Telegram Desktop it shows as a centered 9:16 column with dark letterboxing — no gray bars from Telegram's panel visible alongside content.
+  2. Tapping the message icon on a feed card or profile page opens a Telegram DM with the correct model on iOS, Android, and Desktop — the Mini App session ends cleanly without Safari handoff or broken navigation.
+  3. A `session_start` event with attribution fields (`start_param` / `utm_*`) is recorded in D1 every time a user opens the app.
+  4. `feed_card_click_chat` and `profile_click_chat` events land in D1 even when the tap immediately closes the Mini App — no missing events from navigation race conditions.
+  5. Feed images load lazily; above-the-fold content renders without waiting for below-fold images or non-critical scripts.
+**Plans**: TBD
+**UI hint**: yes
+**Avoids / addresses**: PITFALLS.md Pitfall 3 (window.open fails on iOS — use openTelegramLink), Pitfall 4 (start_param lost on Telegram WebView hot-reload), Pitfall 10 (viewport/keyboard handling — dvh, safe-area-inset); CONCERNS.md [LOW] three parallel fetch calls on load; ARCHITECTURE.md Anti-Pattern 4 (JS-computed layout).
+
+### Phase 4: Admin — Ordering and Promotion
+**Goal**: The operator can control which profiles appear first and which are visually featured — and end users see promoted profiles float to the top of the feed with an animated star frame.
+**Depends on**: Phase 1 (sort_order and is_promoted columns must exist)
+**Requirements**: ADMIN-08, ADMIN-09, ADMIN-10, PROMO-01, PROMO-02, PROMO-03
+**Success Criteria** (what must be TRUE):
+  1. Dragging profiles in the admin list and releasing updates their order immediately in the UI and persists to D1 — the public feed reflects the new order on next load.
+  2. `personas` (read-only) rows always appear below all `onlydate_feed_entries` rows on the public feed without any manual sort_order entry required.
+  3. Toggling a profile as "promoted" in admin moves it above un-promoted entries on the public feed immediately.
+  4. Promoted profiles display a visible animated star-sparkle frame on feed cards — the animation runs at smooth framerate on a mid-range Android device.
+**Plans**: TBD
+**UI hint**: yes
+**Avoids / addresses**: PITFALLS.md Pitfall 9 (HTML5 DnD broken on mobile — SortableJS), Pitfall 12 (promotion animation jank on low-end Android — transform/opacity only), Pitfall 15 (dual-source UNION silent no-op on personas rows); CONCERNS.md [LOW] toggle-active only operates on feed_entries; ARCHITECTURE.md Anti-Pattern 3 (per-row sort_order updates).
+
+### Phase 5: Admin — Profile and Image Management
+**Goal**: The operator can fully manage any feed entry's metadata and photos from the admin panel, images are sized appropriately before upload, and the deployed HTML bundle is minified.
+**Depends on**: Phase 1 (modular router structure; admin password already rotated)
+**Requirements**: ADMIN-01, ADMIN-02, ADMIN-03, ADMIN-04, ADMIN-05, ADMIN-06, ADMIN-07, PERF-03, PERF-04
+**Success Criteria** (what must be TRUE):
+  1. Admin can edit display name, handle, and cover URL on an existing feed entry and see the change reflected on the public feed immediately.
+  2. Admin can hide a profile (it disappears from the public feed) and unhide it (it reappears) — no page refresh required in the admin panel to confirm.
+  3. Admin can soft-delete a profile — it is marked inactive and vanishes from the public feed; R2 cleanup errors appear in Worker logs rather than being silently discarded.
+  4. Admin can hide individual gallery photos without deleting them, and hidden photos do not appear in the public profile view.
+  5. Uploading a cover or gallery photo from the admin panel results in a WebP file at ≤800px max dimension stored in R2 — no full-size originals hit R2 from admin uploads.
+**Plans**: TBD
+**UI hint**: yes
+**Avoids / addresses**: PITFALLS.md Pitfall 13 (CF Image Resizing is paid — canvas resize is the free path); CONCERNS.md [MEDIUM] silent R2 deletion failures; CONCERNS.md [HIGH] no database transactions for cascading deletes; ARCHITECTURE.md Anti-Pattern guidance on free image optimization.
+
+## Progress
+
+**Execution Order:**
+Phases 1 → 2 → 3. Phases 4 and 5 can run in parallel after Phase 1 completes (they touch different files). Phase 3 requires Phase 2.
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 1. Foundation | 0/TBD | Not started | - |
+| 2. Analytics Backend | 0/TBD | Not started | - |
+| 3. Layout, CTA and Analytics Frontend | 0/TBD | Not started | - |
+| 4. Admin — Ordering and Promotion | 0/TBD | Not started | - |
+| 5. Admin — Profile and Image Management | 0/TBD | Not started | - |

@@ -92,16 +92,44 @@
 
 ## Traceability
 
-*Requirement → Phase mapping filled in by roadmap.*
+*Requirement → Phase mapping. Every v1 REQ-ID maps to exactly one phase.*
 
-| REQ-ID | Phase |
-|--------|-------|
-| LAYOUT-01 … LAYOUT-03 | TBD |
-| PERF-01 … PERF-05 | TBD |
-| CHAT-01 … CHAT-03 | TBD |
-| TRACK-01 … TRACK-08 | TBD |
-| ADMIN-01 … ADMIN-10 | TBD |
-| PROMO-01 … PROMO-03 | TBD |
+| REQ-ID | Phase | Status |
+|--------|-------|--------|
+| LAYOUT-01 | Phase 3: Layout, CTA and Analytics Frontend | Pending |
+| LAYOUT-02 | Phase 3: Layout, CTA and Analytics Frontend | Pending |
+| LAYOUT-03 | Phase 3: Layout, CTA and Analytics Frontend | Pending |
+| PERF-01 | Phase 3: Layout, CTA and Analytics Frontend | Pending |
+| PERF-02 | Phase 3: Layout, CTA and Analytics Frontend | Pending |
+| PERF-03 | Phase 5: Admin — Profile and Image Management | Pending |
+| PERF-04 | Phase 5: Admin — Profile and Image Management | Pending |
+| PERF-05 | Phase 3: Layout, CTA and Analytics Frontend | Pending |
+| CHAT-01 | Phase 3: Layout, CTA and Analytics Frontend | Pending |
+| CHAT-02 | Phase 3: Layout, CTA and Analytics Frontend | Pending |
+| CHAT-03 | Phase 3: Layout, CTA and Analytics Frontend | Pending |
+| TRACK-01 | Phase 2: Analytics Backend | Pending |
+| TRACK-02 | Phase 2: Analytics Backend | Pending |
+| TRACK-03 | Phase 2: Analytics Backend | Pending |
+| TRACK-04 | Phase 2: Analytics Backend | Pending |
+| TRACK-05 | Phase 2: Analytics Backend | Pending |
+| TRACK-06 | Phase 2: Analytics Backend | Pending |
+| TRACK-07 | Phase 2: Analytics Backend | Pending |
+| TRACK-08 | Phase 2: Analytics Backend | Pending |
+| ADMIN-01 | Phase 5: Admin — Profile and Image Management | Pending |
+| ADMIN-02 | Phase 5: Admin — Profile and Image Management | Pending |
+| ADMIN-03 | Phase 5: Admin — Profile and Image Management | Pending |
+| ADMIN-04 | Phase 5: Admin — Profile and Image Management | Pending |
+| ADMIN-05 | Phase 5: Admin — Profile and Image Management | Pending |
+| ADMIN-06 | Phase 5: Admin — Profile and Image Management | Pending |
+| ADMIN-07 | Phase 5: Admin — Profile and Image Management | Pending |
+| ADMIN-08 | Phase 4: Admin — Ordering and Promotion | Pending |
+| ADMIN-09 | Phase 4: Admin — Ordering and Promotion | Pending |
+| ADMIN-10 | Phase 4: Admin — Ordering and Promotion | Pending |
+| PROMO-01 | Phase 4: Admin — Ordering and Promotion | Pending |
+| PROMO-02 | Phase 4: Admin — Ordering and Promotion | Pending |
+| PROMO-03 | Phase 4: Admin — Ordering and Promotion | Pending |
+
+**Coverage:** 32/32 v1 requirements mapped. No orphans. No duplicates.
 
 ---
 
