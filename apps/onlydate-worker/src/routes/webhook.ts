@@ -25,10 +25,10 @@ app.post('/webhook/onlydate', async (c) => {
   const chatId = (message.chat as Record<string, unknown>).id;
 
   if (text.startsWith('/start')) {
-    await tgSend(c.env.BOT_TOKEN, 'sendMessage', {
+    await tgSend(c.env.BOT_TOKEN, 'sendPhoto', {
       chat_id: chatId,
-      text: '🎉 <b>Welcome to OnlyDate!</b>\n\n💘 OnlyDate is a discovery app for AI companions on Telegram. Browse unique personalities and start chatting.',
-      parse_mode: 'HTML',
+      photo: 'https://onlydate-api.tg-saas.workers.dev/media/kathy.jpg',
+      caption: 'Chat with real people 💬',
       reply_markup: {
         inline_keyboard: [[
           { text: 'Open', web_app: { url: MINIAPP_URL } },
