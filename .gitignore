@@ -4,3 +4,4 @@ dist/
 .env
 .env.cloudflare
 *.local
+apps/onlydate-dist/

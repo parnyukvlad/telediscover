@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Photo Admin · OnlyDate</title>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js"></script>
   <style>
     :root {
       --bg:        #0a0a0a;
@@ -142,6 +143,69 @@
     #personas-view { display: block; }
     .search-wrap {
       padding: 14px 16px 8px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .search-wrap .search-input { flex: 1; width: auto; }
+    .legend-wrap {
+      margin: 0 16px 10px;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .legend-wrap summary {
+      padding: 7px 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+    }
+    .legend-wrap summary::-webkit-details-marker { display: none; }
+    .legend-wrap summary::before { content: '▸ '; }
+    .legend-wrap[open] summary::before { content: '▾ '; }
+    .legend-body {
+      padding: 8px 12px 10px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .legend-section {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .legend-section:not(:first-child) { margin-top: 10px; }
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text);
+      padding: 2px 0;
+    }
+    .legend-icon {
+      width: 22px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .btn-filter-feed {
+      flex-shrink: 0;
+      background: none;
+      border: 1.5px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--muted);
+      font-size: 12px;
+      font-family: var(--font);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: border-color 0.18s, color 0.18s;
+    }
+    .btn-filter-feed.active {
+      border-color: var(--accent);
+      color: var(--accent);
     }
     .search-input {
       width: 100%;
@@ -417,6 +481,20 @@
     }
     .btn-delete-persona:hover { background: rgba(239,68,68,0.15); }
 
+    /* ── Edit persona button ─────────────────────────── */
+    .btn-edit-persona {
+      flex-shrink: 0;
+      border: 1px solid rgba(168,85,247,0.4);
+      background: transparent;
+      color: var(--accent);
+      font-size: 14px;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+    }
+    .btn-edit-persona:hover { background: rgba(168,85,247,0.15); }
+
     /* ── Feed mode toggle bar ────────────────────── */
     .feed-mode-bar {
       padding: 10px 16px 6px;
@@ -548,6 +626,17 @@
       padding: 24px;
     }
     #modal-overlay.open { display: flex; }
+    #edit-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    #edit-modal-overlay.open { display: flex; }
     .modal-card {
       background: var(--surface);
       border: 1px solid rgba(255,255,255,0.1);
@@ -627,6 +716,50 @@
     }
     .modal-btn-submit:active { opacity: 0.8; }
     .modal-btn-submit:disabled { opacity: 0.5; }
+
+    /* ── Drag handle ─────────────────────────────── */
+    .drag-handle {
+      cursor: grab;
+      padding: 0 8px;
+      color: var(--muted);
+      font-size: 18px;
+      touch-action: none;
+      user-select: none;
+    }
+    .drag-handle:active { cursor: grabbing; }
+    .drag-handle.hidden { display: none; }
+
+    /* ── Promote button ──────────────────────────── */
+    .btn-promo {
+      background: none;
+      border: 1px solid #666;
+      color: #aaa;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .btn-promo.active {
+      border-color: var(--gold);
+      color: var(--gold);
+      background: rgba(245, 158, 11, 0.1);
+    }
+
+    /* ── Sortable ghost ──────────────────────────── */
+    .sortable-ghost {
+      opacity: 0.4;
+      background: var(--surface);
+    }
+
+    /* ── Persona section divider ─────────────────── */
+    .persona-divider {
+      padding: 8px 16px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
   </style>
 </head>
 <body>
@@ -672,7 +805,23 @@
     </div>
     <div class="search-wrap">
       <input class="search-input" id="search-input" type="search" placeholder="🔍  Search personas…" />
+      <button class="btn-filter-feed" id="btn-filter-feed">In feed</button>
     </div>
+    <details class="legend-wrap">
+      <summary>Icon legend</summary>
+      <div class="legend-body">
+        <div class="legend-section">Persona row</div>
+        <div class="legend-row"><span class="legend-icon">⭐</span> Promoted — sparkle glow in public feed</div>
+        <div class="legend-row"><span class="legend-icon">👁</span> In feed / excluded from feed</div>
+        <div class="legend-row"><span class="legend-icon">✏</span> Edit metadata (name, handle, cover URL)</div>
+        <div class="legend-row"><span class="legend-icon">🗑</span> Delete persona (feed entries only)</div>
+        <div class="legend-section">Photo grid</div>
+        <div class="legend-row"><span class="legend-icon">👁</span> Visible — tap to hide from public profile</div>
+        <div class="legend-row"><span class="legend-icon">🚫</span> Hidden — tap to show in public profile</div>
+        <div class="legend-row"><span class="legend-icon">⭐</span> Set as cover photo for this persona</div>
+        <div class="legend-row"><span class="legend-icon">🗑</span> Delete photo</div>
+      </div>
+    </details>
     <div class="persona-list" id="persona-list">
       <!-- rendered by JS -->
     </div>
@@ -717,6 +866,33 @@
   </div>
 </div>
 
+<!-- ═══ EDIT PERSONA MODAL ════════════════════════ -->
+<div id="edit-modal-overlay">
+  <div class="modal-card">
+    <div class="modal-title">✏️ Edit Profile</div>
+    <div id="edit-modal-name-field">
+      <div class="modal-field">
+        <label class="modal-label" for="edit-modal-name">Display Name</label>
+        <input class="modal-input" id="edit-modal-name" type="text" placeholder="e.g. Sofia Rossi" autocomplete="off" />
+      </div>
+    </div>
+    <div id="edit-modal-handle-field">
+      <div class="modal-field">
+        <label class="modal-label" for="edit-modal-handle">Handle (without @)</label>
+        <input class="modal-input" id="edit-modal-handle" type="text" placeholder="e.g. sofia_rossi" autocomplete="off" />
+      </div>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label" for="edit-modal-cover">Cover URL (optional)</label>
+      <input class="modal-input" id="edit-modal-cover" type="text" placeholder="https://…" autocomplete="off" />
+    </div>
+    <div class="modal-btns">
+      <button class="modal-btn-cancel" id="edit-modal-cancel">Cancel</button>
+      <button class="modal-btn-submit" id="edit-modal-submit">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ TOAST ══════════════════════════════════════ -->
 <div id="toast"></div>
 
@@ -739,6 +915,7 @@ const $photosView    = document.getElementById('photos-view');
 const $personaList   = document.getElementById('persona-list');
 const $photosGrid    = document.getElementById('photos-grid');
 const $searchInput   = document.getElementById('search-input');
+const $btnFilterFeed = document.getElementById('btn-filter-feed');
 const $toast         = document.getElementById('toast');
 const $addPersonaBtn = document.getElementById('add-persona-btn');
 const $modalOverlay  = document.getElementById('modal-overlay');
@@ -753,6 +930,12 @@ const $galleryFileInput = document.getElementById('gallery-file-input');
 const $pillAll       = document.getElementById('pill-all');
 const $pillSelected  = document.getElementById('pill-selected');
 const $feedCount     = document.getElementById('feed-count');
+const $editModalOverlay  = document.getElementById('edit-modal-overlay');
+const $editModalName     = document.getElementById('edit-modal-name');
+const $editModalHandle   = document.getElementById('edit-modal-handle');
+const $editModalCover    = document.getElementById('edit-modal-cover');
+const $editModalCancel   = document.getElementById('edit-modal-cancel');
+const $editModalSubmit   = document.getElementById('edit-modal-submit');
 
 /* ── State ────────────────────────────────────── */
 let password            = '';
@@ -761,7 +944,9 @@ let currentPersId       = null;
 let currentPersonaSrc   = ''; // 'personas' | 'feed_entry'
 let toastTimer          = null;
 let feedMode            = 'all'; // 'all' | 'selected'
+let _filterInFeed       = false;
 let pendingCoverFile    = null; // File | null — for modal cover upload
+let editingPersonaId = null; // string | null — feed_entry_id being edited
 
 /* ── Boot ─────────────────────────────────────── */
 const saved = sessionStorage.getItem(SESSION_KEY);
@@ -792,7 +977,7 @@ async function attemptUnlock() {
     sessionStorage.setItem(SESSION_KEY, pw);
     allPersonas = data.personas || [];
     showApp();
-    renderPersonaList(allPersonas);
+    renderPersonaList(currentList());
   } catch (e) {
     showToast('Connection error');
   }
@@ -815,7 +1000,7 @@ async function loadPersonas() {
     if (res.status === 401) { doLogout(); return; }
     const data = await res.json();
     allPersonas = data.personas || [];
-    renderPersonaList(allPersonas);
+    renderPersonaList(currentList());
   } catch (e) {
     $personaList.innerHTML = '<div class="empty">Failed to load. Check connection.</div>';
   }
@@ -860,14 +1045,7 @@ document.querySelector('.feed-mode-pills').addEventListener('click', async funct
     if (!res.ok) throw new Error();
     feedMode = newMode;
     updateFeedModeUI();
-    renderPersonaList(
-      $searchInput.value.trim()
-        ? allPersonas.filter(function (p) {
-            var q = $searchInput.value.trim().toLowerCase();
-            return p.name.toLowerCase().includes(q) || (p.username||'').toLowerCase().includes(q);
-          })
-        : allPersonas
-    );
+    renderPersonaList(currentList());
     showToast(newMode === 'all' ? 'Feed mode: Show all' : 'Feed mode: Selected only');
   } catch {
     showToast('Error — try again');
@@ -906,56 +1084,162 @@ function feedVisBtn(p) {
   }
 }
 
+function personaRowHtml(p, isSearching) {
+  var firstVisible = p.photos.find(function (ph) { return !ph.is_hidden; });
+  var firstPhoto   = p.photos[0];
+  var avatar       = (firstVisible || firstPhoto || {}).file_url || p.cover_url || '';
+  var visCount     = p.photos.filter(function (ph) { return !ph.is_hidden; }).length;
+  var handle       = (p.username || '').replace(/^@/, '');
+  var photosMeta   = p.photos.length === 0
+    ? 'No photos'
+    : visCount + ' visible / ' + p.photos.length + ' total';
+  var notInFeedClass = isInFeed(p) ? '' : ' not-in-feed';
+  var dragHandle = '<div class="drag-handle' + (isSearching ? ' hidden' : '') + '">&#9776;</div>';
+  var promoCls   = p.is_promoted ? 'btn-promo active' : 'btn-promo';
+  var promoLabel = p.is_promoted ? 'Promoted' : 'Promote';
+  var promoBtn   = '<button class="' + promoCls + '" data-action="toggle-promoted" ' +
+    'data-persona-id="' + escHtml(p.id) + '">' + promoLabel + '</button>';
+  return (
+    '<div class="persona-row' + notInFeedClass + '" data-persona-id="' + escHtml(p.id) +
+        '" data-source="' + escHtml(p.source) + '">' +
+      dragHandle +
+      '<img class="persona-avatar" src="' + escHtml(avatar) + '" alt="" ' +
+          'onerror="this.style.opacity=\'0\'">' +
+      '<div class="persona-info">' +
+        '<div class="persona-name">' + escHtml(p.name) + '</div>' +
+        '<div class="persona-meta">@' + escHtml(handle) + ' · ' + photosMeta + '</div>' +
+      '</div>' +
+      '<div class="row-actions">' +
+        promoBtn +
+        feedVisBtn(p) +
+        '<button class="btn-edit-persona" data-action="edit-persona" data-persona-id="' + escHtml(p.id) + '" title="Edit">&#9998;</button>' +
+        (p.source === 'feed_entry'
+          ? '<button class="btn-delete-persona" data-action="delete-persona" data-persona-id="' + escHtml(p.id) + '" title="Delete">&#128465;</button>'
+          : '') +
+      '</div>' +
+      '<div class="persona-arrow">&#8250;</div>' +
+    '</div>'
+  );
+}
+
 function renderPersonaList(personas) {
   if (personas.length === 0) {
     $personaList.innerHTML = '<div class="empty">No personas found.</div>';
     return;
   }
-  $personaList.innerHTML = personas.map(function (p) {
-    const firstVisible  = p.photos.find(function (ph) { return !ph.is_hidden; });
-    const firstPhoto    = p.photos[0];
-    const avatar        = (firstVisible || firstPhoto || {}).file_url || p.cover_url || '';
-    const visCount      = p.photos.filter(function (ph) { return !ph.is_hidden; }).length;
-    const handle        = (p.username || '').replace(/^@/, '');
-    const photosMeta    = p.photos.length === 0
-      ? 'No photos'
-      : visCount + ' visible / ' + p.photos.length + ' total';
-    const notInFeedClass = isInFeed(p) ? '' : ' not-in-feed';
-    return (
-      '<div class="persona-row' + notInFeedClass + '" data-persona-id="' + escHtml(p.id) + '">' +
-        '<img class="persona-avatar" src="' + escHtml(avatar) + '" alt="" ' +
-            'onerror="this.style.opacity=\'0\'">' +
-        '<div class="persona-info">' +
-          '<div class="persona-name">' + escHtml(p.name) + '</div>' +
-          '<div class="persona-meta">@' + escHtml(handle) + ' · ' + photosMeta + '</div>' +
-        '</div>' +
-        '<div class="row-actions">' +
-          feedVisBtn(p) +
-          (p.source === 'feed_entry'
-            ? '<button class="btn-delete-persona" data-action="delete-persona" data-persona-id="' + escHtml(p.id) + '" title="Delete">🗑</button>'
-            : '') +
-        '</div>' +
-        '<div class="persona-arrow">›</div>' +
-      '</div>'
-    );
-  }).join('');
+  // Sort all by sort_order ascending (personas now have sort_order from onlydate_persona_config)
+  var sorted = personas.slice().sort(function (a, b) {
+    var ao = a.sort_order != null ? a.sort_order : 9999999;
+    var bo = b.sort_order != null ? b.sort_order : 9999999;
+    if (ao !== bo) return ao - bo;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  var isSearching = $searchInput.value.trim().length > 0;
+  var html = '';
+  sorted.forEach(function (p) { html += personaRowHtml(p, isSearching); });
+
+  $personaList.innerHTML = html;
   updateFeedModeUI();
+  initSortable();
+}
+
+function initSortable() {
+  if (window._sortable) { window._sortable.destroy(); window._sortable = null; }
+  var isSearching = $searchInput.value.trim().length > 0;
+  if (isSearching) return; // No drag during search
+  window._sortable = Sortable.create($personaList, {
+    animation: 150,
+    handle: '.drag-handle',
+    filter: '',
+    ghostClass: 'sortable-ghost',
+    onEnd: async function () {
+      var ids = [];
+      $personaList.querySelectorAll('.persona-row[data-persona-id]').forEach(function (el) {
+        ids.push(el.dataset.personaId);
+      });
+      if (ids.length === 0) return;
+      try {
+        var res = await fetch(API_BASE + '/api/onlydate/admin/feed-entries/reorder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+          body: JSON.stringify({ order: ids })
+        });
+        var data = await res.json();
+        if (!data.ok) { alert('Reorder failed'); }
+        // Update local sort_order to match new positions
+        ids.forEach(function (id, i) {
+          var p = allPersonas.find(function (x) { return x.id === id; });
+          if (p) p.sort_order = i + 1;
+        });
+      } catch (err) {
+        alert('Reorder failed');
+      }
+    }
+  });
+}
+
+/* ── currentList: respects _filterInFeed + search ── */
+function currentList() {
+  var base = _filterInFeed ? allPersonas.filter(isInFeed) : allPersonas;
+  var q = $searchInput.value.trim().toLowerCase();
+  return q
+    ? base.filter(function (p) {
+        return p.name.toLowerCase().includes(q) ||
+               (p.username || '').toLowerCase().includes(q);
+      })
+    : base;
 }
 
 /* ── Search ───────────────────────────────────── */
 $searchInput.addEventListener('input', function () {
-  const q = this.value.trim().toLowerCase();
-  const filtered = q
-    ? allPersonas.filter(function (p) {
-        return p.name.toLowerCase().includes(q) ||
-               (p.username || '').toLowerCase().includes(q);
-      })
-    : allPersonas;
-  renderPersonaList(filtered);
+  renderPersonaList(currentList());
+});
+
+/* ── In-feed filter ───────────────────────────── */
+$btnFilterFeed.addEventListener('click', function () {
+  _filterInFeed = !_filterInFeed;
+  $btnFilterFeed.classList.toggle('active', _filterInFeed);
+  renderPersonaList(currentList());
 });
 
 /* ── Persona list click ───────────────────────── */
 $personaList.addEventListener('click', async function (e) {
+  // Toggle promoted
+  var promoBtn = e.target.closest('[data-action="toggle-promoted"]');
+  if (promoBtn) {
+    e.stopPropagation();
+    var pid = promoBtn.dataset.personaId;
+    var persona = allPersonas.find(function (p) { return p.id === pid; });
+    if (!persona) return;
+    var newVal = !persona.is_promoted;
+    promoBtn.disabled = true;
+    try {
+      var res = await fetch(API_BASE + '/api/onlydate/admin/feed-entry/toggle-promoted', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+        body: JSON.stringify({ feed_entry_id: pid, is_promoted: newVal })
+      });
+      var data = await res.json();
+      if (data.ok) {
+        persona.is_promoted = newVal ? 1 : 0;
+        renderPersonaList(currentList());
+      }
+    } catch (err) {
+      alert('Failed to update promotion');
+    }
+    promoBtn.disabled = false;
+    return;
+  }
+
+  // Edit persona (feed_entry only)
+  var editBtn = e.target.closest('[data-action="edit-persona"]');
+  if (editBtn) {
+    e.stopPropagation();
+    openEditModal(editBtn.dataset.personaId);
+    return;
+  }
+
   // Delete persona (feed_entry only)
   var delBtn = e.target.closest('[data-action="delete-persona"]');
   if (delBtn) {
@@ -973,14 +1257,7 @@ $personaList.addEventListener('click', async function (e) {
       });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       allPersonas = allPersonas.filter(function (p) { return p.id !== pid; });
-      renderPersonaList(
-        $searchInput.value.trim()
-          ? allPersonas.filter(function (p) {
-              var q = $searchInput.value.trim().toLowerCase();
-              return p.name.toLowerCase().includes(q) || (p.username||'').toLowerCase().includes(q);
-            })
-          : allPersonas
-      );
+      renderPersonaList(currentList());
       showToast('Persona deleted');
     } catch {
       showToast('Error — try again');
@@ -1006,14 +1283,7 @@ $personaList.addEventListener('click', async function (e) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       var persona = allPersonas.find(function (p) { return p.id === pid; });
       if (persona) persona.feed_visible = nextVal;
-      renderPersonaList(
-        $searchInput.value.trim()
-          ? allPersonas.filter(function (p) {
-              var q = $searchInput.value.trim().toLowerCase();
-              return p.name.toLowerCase().includes(q) || (p.username||'').toLowerCase().includes(q);
-            })
-          : allPersonas
-      );
+      renderPersonaList(currentList());
       if (feedMode === 'all') {
         showToast(nextVal === 0 ? 'Excluded from feed' : 'Restored to feed');
       } else {
@@ -1058,15 +1328,7 @@ function showPersonasView() {
   $topbarTitle.textContent     = '📸 Photo Admin';
   currentPersId = null;
   // Refresh persona list meta (visible counts may have changed)
-  renderPersonaList(
-    $searchInput.value.trim()
-      ? allPersonas.filter(function (p) {
-          var q = $searchInput.value.trim().toLowerCase();
-          return p.name.toLowerCase().includes(q) ||
-                 (p.username || '').toLowerCase().includes(q);
-        })
-      : allPersonas
-  );
+  renderPersonaList(currentList());
 }
 
 /* ── Render photo grid ────────────────────────── */
@@ -1085,11 +1347,16 @@ function renderPhotoGrid(persona) {
     var photoCards = persona.photos.map(function (ph) {
       var isCover = (ph.file_url === persona.cover_url);
       var coverClass = isCover ? ' is-cover' : '';
+      var hiddenClass2 = ph.is_hidden ? ' hidden-photo' : '';
+      var eyeState2    = ph.is_hidden ? ' hidden-state'  : '';
+      var eyeIcon2     = ph.is_hidden ? '🚫'             : '👁';
       return (
-        '<div class="photo-card' + coverClass + '" data-media-id="' + escHtml(ph.media_id) + '" data-file-url="' + escHtml(ph.file_url) + '">' +
+        '<div class="photo-card' + coverClass + hiddenClass2 + '" data-media-id="' + escHtml(ph.media_id) + '" data-file-url="' + escHtml(ph.file_url) + '">' +
           '<img src="' + escHtml(ph.file_url) + '" loading="lazy" alt="">' +
+          '<div class="photo-overlay"><span class="photo-overlay-text">Hidden</span></div>' +
           '<div class="cover-badge">Cover</div>' +
           '<div class="photo-actions">' +
+            '<button class="photo-btn btn-eye' + eyeState2 + '" data-action="toggle-feed-photo" title="Toggle visibility">' + eyeIcon2 + '</button>' +
             '<button class="photo-btn btn-set-cover" data-action="set-cover" title="Set as cover">⭐</button>' +
             '<button class="photo-btn btn-delete" data-action="delete-photo" title="Delete">🗑</button>' +
           '</div>' +
@@ -1154,7 +1421,8 @@ async function uploadGalleryPhotos(files, entryId) {
   var uploaded = 0;
   for (var i = 0; i < files.length; i++) {
     try {
-      var result = await uploadFile(files[i], 'gallery', entryId);
+      var resized = await resizeToWebP(files[i], 800, 0.85);
+      var result = await uploadFile(resized, 'gallery', entryId);
       // Register in DB
       var res = await fetch(API_BASE + '/api/onlydate/admin/feed-entry/photo/add', {
         method:  'POST',
@@ -1254,6 +1522,28 @@ $photosGrid.addEventListener('click', async function (e) {
     }
   }
 
+  if (action === 'toggle-feed-photo') {
+    btn.disabled = true;
+    try {
+      var newHidden2 = !photo.is_hidden;
+      var res = await fetch(API_BASE + '/api/onlydate/admin/feed-entry/photo/toggle-hidden', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+        body:    JSON.stringify({ photo_id: mediaId, is_hidden: newHidden2 }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      photo.is_hidden = newHidden2;
+      card.classList.toggle('hidden-photo', newHidden2);
+      btn.classList.toggle('hidden-state', newHidden2);
+      btn.textContent = newHidden2 ? '🚫' : '👁';
+      showToast(newHidden2 ? 'Photo hidden' : 'Photo visible');
+    } catch {
+      showToast('Error — try again');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   if (action === 'cover') {
     if (photo.is_cover) return; // already cover
     btn.disabled = true;
@@ -1341,7 +1631,8 @@ async function submitNewPersona() {
     var coverUrl = null;
     if (pendingCoverFile) {
       $modalSubmit.textContent = 'Uploading…';
-      var uploadResult = await uploadFile(pendingCoverFile, 'cover', 'new-' + Date.now());
+      var resizedCover = await resizeToWebP(pendingCoverFile, 800, 0.85);
+      var uploadResult = await uploadFile(resizedCover, 'cover', 'new-' + Date.now());
       coverUrl = uploadResult.url;
     }
 
@@ -1361,13 +1652,101 @@ async function submitNewPersona() {
     pendingCoverFile = null;
     $modalCoverPreview.classList.remove('visible');
     $modalCoverHint.textContent = 'Click to choose photo';
-    renderPersonaList(allPersonas);
+    renderPersonaList(currentList());
     showToast('Persona created ✓');
   } catch {
     showToast('Connection error');
   } finally {
     $modalSubmit.disabled = false;
     $modalSubmit.textContent = 'Create';
+  }
+}
+
+/* ── Edit persona modal ───────────────────────── */
+function openEditModal(personaId) {
+  var persona = allPersonas.find(function (p) { return p.id === personaId; });
+  if (!persona) return;
+  editingPersonaId         = personaId;
+  $editModalName.value     = persona.name || '';
+  $editModalHandle.value   = (persona.username || '').replace(/^@/, '');
+  $editModalCover.value    = persona.cover_url || '';
+
+  var isFeedEntry = (persona.source === 'feed_entry');
+  document.getElementById('edit-modal-name-field').style.display   = isFeedEntry ? '' : 'none';
+  document.getElementById('edit-modal-handle-field').style.display = isFeedEntry ? '' : 'none';
+
+  $editModalOverlay.classList.add('open');
+  if (isFeedEntry) $editModalName.focus(); else $editModalCover.focus();
+}
+
+$editModalCancel.addEventListener('click', function () {
+  $editModalOverlay.classList.remove('open');
+  editingPersonaId = null;
+});
+
+$editModalOverlay.addEventListener('click', function (e) {
+  if (e.target === $editModalOverlay) {
+    $editModalOverlay.classList.remove('open');
+    editingPersonaId = null;
+  }
+});
+
+$editModalSubmit.addEventListener('click', submitEditPersona);
+$editModalName.addEventListener('keydown',   function (e) { if (e.key === 'Enter') $editModalHandle.focus(); });
+$editModalHandle.addEventListener('keydown', function (e) { if (e.key === 'Enter') $editModalCover.focus(); });
+$editModalCover.addEventListener('keydown',  function (e) { if (e.key === 'Enter') submitEditPersona(); });
+
+async function submitEditPersona() {
+  if (!editingPersonaId) return;
+  var persona = allPersonas.find(function (p) { return p.id === editingPersonaId; });
+  if (!persona) return;
+
+  var isFeedEntry = (persona.source === 'feed_entry');
+  var cover = $editModalCover.value.trim();
+
+  if (isFeedEntry) {
+    var name   = $editModalName.value.trim();
+    var handle = $editModalHandle.value.trim().replace(/^@/, '');
+    if (!name)   { $editModalName.focus();   showToast('Enter display name'); return; }
+    if (!handle) { $editModalHandle.focus(); showToast('Enter handle'); return; }
+  }
+
+  $editModalSubmit.disabled    = true;
+  $editModalSubmit.textContent = 'Saving\u2026';
+  try {
+    var res, data;
+    if (isFeedEntry) {
+      res  = await fetch(API_BASE + '/api/onlydate/admin/feed-entry/update', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+        body:    JSON.stringify({ feed_entry_id: editingPersonaId, display_name: $editModalName.value.trim(), handle: $editModalHandle.value.trim().replace(/^@/, ''), cover_url: cover }),
+      });
+    } else {
+      res  = await fetch(API_BASE + '/api/onlydate/admin/persona/set-cover', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+        body:    JSON.stringify({ persona_id: editingPersonaId, cover_url: cover || null }),
+      });
+    }
+    data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Error saving'); return; }
+
+    // Update in-memory
+    if (isFeedEntry) {
+      persona.name      = $editModalName.value.trim();
+      persona.username  = $editModalHandle.value.trim().replace(/^@/, '');
+    }
+    persona.cover_url = cover || undefined;
+
+    $editModalOverlay.classList.remove('open');
+    editingPersonaId = null;
+    renderPersonaList(currentList());
+    showToast('Profile updated \u2713');
+  } catch {
+    showToast('Connection error');
+  } finally {
+    $editModalSubmit.disabled    = false;
+    $editModalSubmit.textContent = 'Save';
   }
 }
 
@@ -1384,6 +1763,34 @@ function doLogout() {
 }
 
 /* ── Helpers ──────────────────────────────────── */
+/* ── Image resize ─────────────────────────────── */
+function resizeToWebP(file, maxPx, quality) {
+  return new Promise(function (resolve, reject) {
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function () {
+      URL.revokeObjectURL(url);
+      var w     = img.naturalWidth;
+      var h     = img.naturalHeight;
+      var scale = Math.min(1, maxPx / Math.max(w, h));
+      var canvas  = document.createElement('canvas');
+      canvas.width  = Math.round(w * scale);
+      canvas.height = Math.round(h * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(function (blob) {
+        if (!blob) { reject(new Error('toBlob returned null')); return; }
+        // Safari <16 may return PNG instead of WebP — use actual blob type for extension
+        var ext = blob.type === 'image/webp' ? 'webp'
+                : blob.type === 'image/png'  ? 'png'
+                : 'jpg';
+        resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.' + ext), { type: blob.type }));
+      }, 'image/webp', quality || 0.85);
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 function showToast(msg) {
   $toast.textContent = msg;
   $toast.classList.add('show');

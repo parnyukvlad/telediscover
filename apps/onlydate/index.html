@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>TeleDiscover</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
@@ -37,8 +37,17 @@
     a { color: inherit; text-decoration: none; }
 
     /* ── Views ── */
-    #grid-view    { display: block;  min-height: 100vh; }
-    #profile-view { display: none;   min-height: 100vh; background: var(--bg); }
+    #grid-view    { display: block;  min-height: 100vh; min-height: 100dvh; }
+    #profile-view { display: none;   min-height: 100vh; min-height: 100dvh; background: var(--bg); }
+
+    #app-wrapper {
+      max-width: min(100vw, calc(100dvh * 9 / 16));
+      margin: 0 auto;
+      position: relative;
+      min-height: 100vh;
+      min-height: 100dvh;
+      background: var(--bg);
+    }
 
     /* ── Header ── */
     .header {
@@ -59,6 +68,8 @@
       z-index: 100;
       background: var(--bg);
       padding: 8px 12px 10px;
+      padding-top:    max(8px,  env(safe-area-inset-top));
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
       display: flex;
       gap: 6px;
       border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -138,6 +149,30 @@
       margin-top: 2px;
     }
 
+    /* ── Card Chat Button ── */
+    .card-chat-btn {
+      position:   absolute;
+      bottom:     10px;
+      right:      10px;
+      width:      32px;
+      height:     32px;
+      border-radius: 50%;
+      border:     none;
+      background: rgba(0, 0, 0, 0.55);
+      color:      #fff;
+      display:    flex;
+      align-items: center;
+      justify-content: center;
+      cursor:     pointer;
+      z-index:    2;
+      transition: background 0.14s, transform 0.14s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .card-chat-btn:active {
+      background: rgba(255, 255, 255, 0.2);
+      transform:  scale(0.92);
+    }
+
     /* ── Skeleton ── */
     .skeleton {
       border-radius: var(--radius-card);
@@ -183,6 +218,7 @@
       align-items: center;
       justify-content: center;
       padding: 16px 16px 10px;
+      padding-top: max(16px, env(safe-area-inset-top));
       position: relative;
     }
     .profile-topbar-title {
@@ -484,10 +520,52 @@
     .fade-up {
       animation: fadeUp 0.22s ease forwards;
     }
+
+    /* ── Promoted card star-sparkle frame ── */
+    .model-card.promoted {
+      position: relative;
+      z-index: 1;
+      animation: promo-glow 2s ease-in-out infinite;
+      will-change: box-shadow;
+    }
+    .model-card.promoted.offscreen {
+      animation-play-state: paused;
+    }
+    .model-card.promoted::after {
+      content: '\2605'; /* solid star character */
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 22px;
+      height: 22px;
+      font-size: 18px;
+      line-height: 22px;
+      text-align: center;
+      color: #f59e0b;
+      animation: sparkle-spin 3s linear infinite;
+      pointer-events: none;
+      will-change: transform, opacity;
+      z-index: 2;
+    }
+    @keyframes promo-glow {
+      0%, 100% { box-shadow: 0 0 0 2px #f59e0b, 0 0 10px 3px rgba(245,158,11,0.45); }
+      50%      { box-shadow: 0 0 0 2px #fbbf24, 0 0 18px 6px rgba(251,191,36,0.75); }
+    }
+    @keyframes sparkle-spin {
+      0%   { transform: rotate(0deg) scale(0.9); opacity: 0.7; }
+      50%  { transform: rotate(180deg) scale(1.1); opacity: 1; }
+      100% { transform: rotate(360deg) scale(0.9); opacity: 0.7; }
+    }
+    /* Pause animation when card is off-screen */
+    .model-card.promoted.offscreen::after {
+      animation-play-state: paused;
+    }
   </style>
 </head>
 
 <body>
+
+<div id="app-wrapper">
 
 <!-- ═══════════════════════════════════════════════
      GRID VIEW
@@ -524,6 +602,8 @@
 
 </div>
 
+</div><!-- /#app-wrapper -->
+
 <!-- ═══════════════════════════════════════════════
      TOAST
 ═════════════════════════════════════════════════ -->
@@ -548,6 +628,23 @@
 
 const API_BASE = 'https://onlydate-api.tg-saas.workers.dev';
 
+function track(eventType, extra) {
+  var initData = tg ? tg.initData : '';
+  var payload = JSON.stringify(Object.assign({
+    initData:       initData,
+    event_type:     eventType,
+    persona_handle: null,
+    start_param:    null,
+    utm_source:     null,
+    utm_medium:     null,
+    utm_campaign:   null,
+  }, extra));
+  var url = API_BASE + '/api/onlydate/track';
+  fetch(url, { method: 'POST', body: payload,
+               headers: { 'Content-Type': 'application/json' },
+               keepalive: true }).catch(function () {});
+}
+
 const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) {
   tg.ready();
@@ -570,6 +667,29 @@ const $backBtn       = document.getElementById('back-btn');
 const $toast         = document.getElementById('toast');
 
 function init() {
+  /* ── Attribution: read once, persist across WebView hot-reloads ── */
+  var attr = {};
+  var stored = sessionStorage.getItem('od_attr');
+  if (stored) {
+    try { attr = JSON.parse(stored); } catch (e) { attr = {}; }
+  } else {
+    var sp = new URLSearchParams(window.location.search);
+    var tgStartParam = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+    attr = {
+      start_param:  tgStartParam                  || null,
+      utm_source:   sp.get('utm_source')           || null,
+      utm_medium:   sp.get('utm_medium')           || null,
+      utm_campaign: sp.get('utm_campaign')         || null,
+    };
+    sessionStorage.setItem('od_attr', JSON.stringify(attr));
+  }
+  track('session_start', attr);
+
+  /* ── Safe-area JS override (for old Telegram that returns 0 from CSS env()) ── */
+  if (tg && tg.contentSafeAreaInset && tg.contentSafeAreaInset.top > 0) {
+    $tabBar.style.paddingTop = tg.contentSafeAreaInset.top + 'px';
+  }
+
   renderSkeletons();
   attachTabEvents();
   attachGridEvents();
@@ -637,19 +757,39 @@ function renderGrid(tab) {
     const delay   = Math.min(i * 30, 300);
 
     return (
-      '<div class="model-card fade-up" data-username="' + handle + '" ' +
+      '<div class="model-card fade-up' + (m.is_promoted ? ' promoted' : '') + '" data-username="' + handle + '" ' +
           'style="animation-delay:' + delay + 'ms">' +
         '<img class="model-card-img" src="' + imgSrc + '" ' +
-            'loading="lazy" alt="' + name + '" ' +
+            (i === 0 ? 'loading="eager"' : 'loading="lazy"') + ' decoding="async" alt="' + name + '" ' +
             'onerror="this.style.opacity=\'0\'">' +
         '<div class="model-card-overlay"></div>' +
         '<div class="model-card-info">' +
           '<div class="model-card-name">'   + name   + '</div>' +
           '<div class="model-card-handle">@' + handle.replace(/^@/, '') + '</div>' +
         '</div>' +
+        '<button class="card-chat-btn" data-handle="' + handle + '" aria-label="Message">' +
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<line x1="22" y1="2" x2="11" y2="13"></line>' +
+            '<polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>' +
+          '</svg>' +
+        '</button>' +
       '</div>'
     );
   }).join('');
+  observePromotedCards();
+}
+
+function observePromotedCards() {
+  if (!('IntersectionObserver' in window)) return;
+  var cards = document.querySelectorAll('.model-card.promoted');
+  if (cards.length === 0) return;
+  if (window._promoObserver) window._promoObserver.disconnect();
+  window._promoObserver = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      entry.target.classList.toggle('offscreen', !entry.isIntersecting);
+    });
+  }, { threshold: 0 });
+  cards.forEach(function (card) { window._promoObserver.observe(card); });
 }
 
 function attachTabEvents() {
@@ -670,6 +810,23 @@ function attachTabEvents() {
 
 function attachGridEvents() {
   $gridContainer.addEventListener('click', function (e) {
+    /* chat button branch MUST come first — stopPropagation prevents card-open from firing */
+    var chatBtn = e.target.closest('.card-chat-btn');
+    if (chatBtn) {
+      e.stopPropagation();
+      var handle = chatBtn.dataset.handle;
+      if (handle) {
+        track('feed_card_click_chat', { persona_handle: handle });
+        var url = 'https://t.me/' + encodeURIComponent(handle);
+        if (tg && tg.openTelegramLink) {
+          tg.openTelegramLink(url);
+        } else {
+          window.open(url, '_blank');
+        }
+      }
+      return;
+    }
+    /* card body opens profile */
     var card = e.target.closest('.model-card');
     if (card && card.dataset.username) openProfile(card.dataset.username);
   });
@@ -693,6 +850,7 @@ async function openProfile(username) {
     const profile = await fetchProfile(username);
     currentProfile = profile;
     renderProfile(profile);
+    track('profile_open', { persona_handle: currentProfile.username || null });
   } catch (e) {
     console.error('[App] fetchProfile error:', e);
     $profileContent.innerHTML =
@@ -746,8 +904,7 @@ function renderProfile(p) {
         '</div>' +
         '<a class="profile-username" href="https://t.me/' + handle + '">@' + handle + '</a>' +
         '<div class="profile-actions">' +
-          '<button class="btn-primary" id="btn-msg">💬 Message</button>' +
-          '<button class="btn-outline" id="btn-share">↗ Share</button>' +
+          '<button class="btn-primary" id="btn-msg">Message</button>' +
         '</div>' +
       '</div>' +
     '</div>' +
@@ -756,7 +913,6 @@ function renderProfile(p) {
     '</div>';
 
   document.getElementById('btn-msg').addEventListener('click', onMessageClick);
-  document.getElementById('btn-share').addEventListener('click', onShareClick);
 
   var grid = document.getElementById('photos-grid');
   if (grid) {
@@ -796,6 +952,7 @@ function showGrid() {
 
 function onMessageClick() {
   if (!currentProfile || !currentProfile.username) return;
+  track('profile_click_chat', { persona_handle: currentProfile.username });
   var url = 'https://t.me/' + encodeURIComponent(currentProfile.username);
   if (tg && tg.openTelegramLink) {
     tg.openTelegramLink(url);
@@ -804,17 +961,6 @@ function onMessageClick() {
   }
 }
 
-function onShareClick() {
-  if (!currentProfile || !currentProfile.username) return;
-  var text = '@' + currentProfile.username.replace(/^@/, '');
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text)
-      .then(function () { showToast('Copied! ✓'); })
-      .catch(function () { showToast(text); });
-  } else {
-    showToast(text);
-  }
-}
 
 function showToast(msg) {
   $toast.textContent = msg;
@@ -932,8 +1078,15 @@ $lightbox.addEventListener('click', function (e) {
   if (e.target === $lightbox) closeLightbox();
 });
 $lightboxMsg.addEventListener('click', function () {
+  if (!currentProfile || !currentProfile.username) return;
+  track('profile_click_chat', { persona_handle: currentProfile.username });
   closeLightbox();
-  onMessageClick();
+  var url = 'https://t.me/' + encodeURIComponent(currentProfile.username);
+  if (tg && tg.openTelegramLink) {
+    tg.openTelegramLink(url);
+  } else {
+    window.open(url, '_blank');
+  }
 });
 
 init();

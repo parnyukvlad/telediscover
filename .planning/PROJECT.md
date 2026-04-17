@@ -12,29 +12,29 @@ OnlyDate is a Telegram Mini App that showcases a curated feed of model profiles 
 
 ### Validated
 
-<!-- Existing capabilities that already work in production -->
-
 - ✓ Cloudflare Worker backend on Hono with D1 + R2 — existing
 - ✓ Telegram Mini App frontend served from Cloudflare Pages — existing
-- ✓ Admin-created feed entries stored in `onlydate_feed_entries` with cover + gallery photos on R2 — existing
-- ✓ Read-only import of legacy `personas` populated from an external sibling app — existing
-- ✓ UNION-based feed query over both sources with visibility flags (`feed_visible`, `feed_mode`) — existing
-- ✓ Password-gated admin UI (`/photochoose`) for creating feed entries, uploading cover, managing gallery — existing
+- ✓ Admin-created feed entries in `onlydate_feed_entries` with R2 photos — existing
+- ✓ UNION-based feed query over personas + feed_entries with visibility flags — existing
+- ✓ D1 schema: `sort_order` + `is_promoted` on feed_entries, `onlydate_events` table — v1.0
+- ✓ Worker modularized: `routes/` + `shared/` split, thin index.ts — v1.0
+- ✓ Admin credential rotated to Wrangler secret `c.env.ADMIN_PASSWORD` — v1.0
+- ✓ **Analytics:** HMAC-validated events (D1 + PostHog relay), attribution capture, 90-day TTL cron — v1.0
+- ✓ **Layout:** 9:16 portrait on mobile, centered letterbox on desktop, iOS safe-area — v1.0
+- ✓ **Chat CTA:** Paper-plane deeplink to `t.me/<handle>` on feed cards + profile, sendBeacon keepalive — v1.0
+- ✓ **Admin ordering:** SortableJS drag-drop reorder persisted to D1; personas always below feed_entries — v1.0
+- ✓ **Admin promotion:** Toggle `is_promoted`; promoted cards float top + animated star-sparkle — v1.0
+- ✓ **Admin profile mgmt:** Edit metadata, hide/unhide, soft-delete (R2 errors logged) — v1.0
+- ✓ **Admin image mgmt:** Photo hide/unhide (is_hidden), WebP resize ≤800px client-side — v1.0
+- ✓ **Build pipeline:** HTML minification (38% reduction), deploy:pages chains minify+wrangler — v1.0
 
 ### Active
 
-<!-- This milestone — hypotheses until shipped -->
+<!-- Next milestone — hypotheses to validate -->
 
-- [ ] **Layout:** App opens in 9:16 portrait on all devices. Desktop shows a centered portrait window that looks like an enlarged mobile screen.
-- [ ] **Performance:** First-screen content loads fast. Images lazy-load and are delivered at appropriate sizes. JS/CSS minified. UI stripped of elements that don't drive the user toward a chat.
-- [ ] **Chat CTA:** Message icon on every feed card AND on the model profile page. Tap opens `t.me/<handle>` DM. Works from both entry points.
-- [ ] **Event tracking (D1):** Raw events persisted in D1 — `feed_card_click_chat`, `profile_click_chat`, `profile_open` — bound to Telegram user id.
-- [ ] **Attribution capture:** Every session records its ad source from Telegram `start_param` AND URL `utm_*` params (whichever is present).
-- [ ] **Analytics dashboards (PostHog):** Same events forwarded to PostHog (self-hosted or free tier) for funnel / cohort / repeat-visit analysis. No paid tier.
-- [ ] **Admin — profile management:** Edit display name / handle / cover, hide individual profile, soft delete.
-- [ ] **Admin — image management:** Choose cover from gallery, add / delete photos, hide individual photos without deleting them.
-- [ ] **Admin — ordering:** Drag-and-drop reorder of profiles on the public feed. Persisted to DB.
-- [ ] **Admin — promotion:** Binary promote/unpromote toggle per profile. Promoted profiles render with animated star-sparkle frame on the public feed.
+- [ ] **PostHog dashboards:** Verify funnel / cohort / repeat-visit queries work against real event data after ad launch.
+- [ ] **Nyquist test coverage:** Phases 2-5 have VALIDATION.md stubs — run `/gsd:validate-phase` per phase before next feature work.
+- [ ] **Session token security:** Admin password still in sessionStorage — rotate to a more secure mechanism.
 
 ### Out of Scope
 
@@ -62,7 +62,7 @@ OnlyDate is a Telegram Mini App that showcases a curated feed of model profiles 
 
 - Stack: Cloudflare Workers (Hono 4.x) + D1 (SQLite) + R2 + Cloudflare Pages. Vanilla JS frontend, no bundler. pnpm workspace.
 - Admin UI is a single-file vanilla JS app (`apps/onlydate/photochoose/index.html`, 1411 lines) — extend it, don't rewrite.
-- All backend routes live in one file: `apps/onlydate-worker/src/index.ts` (733 lines). Pattern is consistent: `isAdmin` check → JSON parse → validation → D1 prepare/bind/run → `{ ok: true }` / `{ error }`. Match that pattern for new routes.
+- Backend routes are now split across `src/routes/admin.ts`, `src/routes/public.ts`, `src/routes/webhook.ts`. `src/index.ts` is a 32-line thin assembly. Shared utilities in `src/shared/`. Pattern is consistent: `isAdmin` check → JSON parse → validation → D1 prepare/bind/run → `{ ok: true }` / `{ error }`. Match that pattern for new routes.
 - Existing codebase concerns are documented in `.planning/codebase/CONCERNS.md`. Most notable: hardcoded admin password in source (critical), admin password in sessionStorage, N+1 subqueries for cover photos, no foreign key on `onlydate_feed_photos.feed_entry_id`, silent R2 delete failures. These are not blockers for this milestone but worth addressing opportunistically.
 
 ### User identity
@@ -83,7 +83,7 @@ OnlyDate is a Telegram Mini App that showcases a curated feed of model profiles 
 - **Compatibility:** Existing Mini App URL must keep working. New query params allowed; removing/renaming existing ones is not. — live bot links depend on current URL.
 - **Identity:** Telegram `initData` must be validated server-side with the bot token secret before any user-scoped analytics event is trusted. — prevents event forgery.
 - **Tech stack:** Stay on Cloudflare Workers + D1 + R2 + vanilla JS frontend. Don't introduce a frontend framework this milestone. — matches existing code and keeps the app tiny.
-- **Privacy / content:** Admin password stored in source (`apps/onlydate-worker/src/index.ts:13-14`) and sessionStorage are known security debts — do not make them worse. Ideally rotate out of source during this milestone if a phase touches auth.
+- **Privacy / content:** Admin password was in source (`apps/onlydate-worker/src/index.ts:13-14`) — rotated out in Phase 1. Now read from `c.env.ADMIN_PASSWORD` Wrangler secret. sessionStorage still a known debt — do not make it worse.
 - **Persona sources:** `personas` stays read-only. Do not write to it. Do not migrate its rows out. — external app owns its lifecycle.
 
 ## Key Decisions
@@ -117,4 +117,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-16 after initialization*
+*Last updated: 2026-04-17 — Phase 5 Admin Profile and Image Management complete (feed entry edit modal, photo hide/unhide, canvas WebP resize, cover URL override for all personas, icon legend, HTML minification pipeline)*
